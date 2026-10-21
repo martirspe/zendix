@@ -1,0 +1,100 @@
+name: mailcraft
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run dev --workspace @mailcraft/web
+    ports: ["127.0.0.1:4200:4200"]
+    volumes:
+      - .:/workspace
+      - dependencies:/workspace/node_modules
+      - angular_cache:/workspace/apps/web/.angular
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+    init: true
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npm run dev --workspace @mailcraft/api
+    environment:
+      DATABASE_URL: postgresql://mailcraft:development_only@postgres:5432/mailcraft
+      CHOKIDAR_USEPOLLING: "true"
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-development-only-secret-change-before-deployment}
+      MAILCHANNELS_API_KEY: ${MAILCHANNELS_API_KEY:-}
+      MAILCHANNELS_ACCOUNT_ID: ${MAILCHANNELS_ACCOUNT_ID:-}
+      MAILCHANNELS_DKIM_SELECTOR: ${MAILCHANNELS_DKIM_SELECTOR:-mailchannels}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:4200}
+      NODE_ENV: development
+      DEV_SENDER_EMAIL: ${DEV_SENDER_EMAIL:-}
+      DEV_TEST_RECIPIENT: ${DEV_TEST_RECIPIENT:-}
+      MAILCRAFT_KEYS_PATH: /var/lib/mailcraft/keys
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - .:/workspace
+      - dependencies:/workspace/node_modules
+      - integration_keys:/var/lib/mailcraft/keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+    init: true
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: postgresql://mailcraft:development_only@postgres:5432/mailcraft
+    volumes:
+      - .:/workspace
+      - dependencies:/workspace/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    init: true
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mailcraft
+      POSTGRES_PASSWORD: development_only
+      POSTGRES_DB: mailcraft
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailcraft"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  dependencies:
+  angular_cache:
+  postgres_data:
+  redis_data:
+  integration_keys:

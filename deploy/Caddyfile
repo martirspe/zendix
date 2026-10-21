@@ -1,0 +1,32 @@
+{
+    http_port 8080
+    https_port 8443
+    admin off
+    email {$ACME_EMAIL}
+}
+
+{$APP_HOST} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'"
+        -Server
+    }
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy api:3000
+    }
+    handle /email-view/* {
+        reverse_proxy api:3000
+    }
+    handle /unsubscribe/* {
+        reverse_proxy api:3000
+    }
+    handle {
+        reverse_proxy web:8080
+    }
+}

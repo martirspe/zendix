@@ -1,0 +1,15 @@
+import {Body,Controller,Get,Post,Patch,Delete,Param,Req,Inject,UseGuards,ValidationPipe,NotFoundException,BadRequestException} from '@nestjs/common';
+import {ArrayMaxSize,ArrayUnique,IsArray,IsBoolean,IsDefined,IsIn,IsOptional,IsString,IsUUID,Matches,MaxLength,ValidateNested} from 'class-validator';import {Type} from 'class-transformer';
+import {Database} from './database';import {TenantGuard,TenantRequest} from './tenant.guard';
+class ViewFiltersDto {@IsString() @MaxLength(100) q!:string;@IsIn(['all','subscribed','unsubscribed','bounced','complained']) status!:string;@IsBoolean() archived!:boolean;@IsOptional() @IsUUID('4') listId?:string;@IsIn([25,50,100]) pageSize!:number;}
+class ContactViewDto {@IsString() @Matches(/\S/) @MaxLength(80) name!:string;@IsDefined() @ValidateNested() @Type(()=>ViewFiltersDto) filters!:ViewFiltersDto;@IsArray() @ArrayMaxSize(100) @ArrayUnique() @IsString({each:true}) @MaxLength(50,{each:true}) columns!:string[];}
+const validation=new ValidationPipe({expectedType:ContactViewDto,whitelist:true,forbidNonWhitelisted:true,transform:true});
+@Controller('contact-views') @UseGuards(TenantGuard)
+export class ContactViewsController {
+ constructor(@Inject(Database) private readonly db:Database){}
+ @Get() async list(@Req() request:TenantRequest){return this.db.contactView.findMany({where:{tenantId:request.tenantId},take:20,orderBy:[{name:'asc'},{id:'asc'}]});}
+ private async data(tenantId:string,input:ContactViewDto){if(input.filters.listId&&!await this.db.list.findUnique({where:{tenantId_id:{tenantId,id:input.filters.listId}}}))throw new NotFoundException('Lista no encontrada.');const fields=await this.db.contactField.findMany({where:{tenantId},select:{key:true}}),allowed=new Set(fields.map(field=>field.key));if(input.columns.some(key=>!allowed.has(key)))throw new BadRequestException('Las columnas deben pertenecer a tu espacio.');return {name:input.name.trim(),filters:{q:input.filters.q,status:input.filters.status,archived:input.filters.archived,pageSize:input.filters.pageSize,...(input.filters.listId?{listId:input.filters.listId}:{})},columns:input.columns};}
+ @Post() async create(@Req() request:TenantRequest,@Body(validation) input:ContactViewDto){if(await this.db.contactView.count({where:{tenantId:request.tenantId}})>=20)throw new BadRequestException('Puedes guardar hasta 20 vistas.');return this.db.contactView.create({data:{tenantId:request.tenantId,...await this.data(request.tenantId,input)}});}
+ @Patch(':id') async update(@Req() request:TenantRequest,@Param('id') id:string,@Body(validation) input:ContactViewDto){const data=await this.data(request.tenantId,input),result=await this.db.contactView.updateMany({where:{tenantId:request.tenantId,id},data});if(!result.count)throw new NotFoundException();return {updated:true};}
+ @Delete(':id') async remove(@Req() request:TenantRequest,@Param('id') id:string){const result=await this.db.contactView.deleteMany({where:{tenantId:request.tenantId,id}});if(!result.count)throw new NotFoundException();return {deleted:true};}
+}

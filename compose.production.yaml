@@ -1,0 +1,109 @@
+name: mailcraft-production
+services:
+  gateway:
+    build: {context: ., target: gateway}
+    environment:
+      APP_HOST: ${APP_HOST:?Set APP_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    ports: ["80:8080", "443:8443"]
+    volumes: ["caddy_data:/data", "caddy_config:/config"]
+    depends_on:
+      api: {condition: service_healthy}
+      web: {condition: service_healthy}
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  web:
+    build: {context: ., target: web}
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  api:
+    build: {context: ., target: api}
+    environment:
+      NODE_ENV: production
+      APP_PUBLIC_URL: https://${APP_HOST:?Set APP_HOST}
+      ALLOW_REGISTRATION: "false"
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      MAILCRAFT_MASTER_KEY_FILE: /run/secrets/vault_key
+      MAILCRAFT_KEYS_PATH: /var/lib/mailcraft/keys
+      DATABASE_HOST: postgres
+      DATABASE_USER: mailcraft
+      DATABASE_NAME: mailcraft
+      DATABASE_PASSWORD_FILE: /run/secrets/database_password
+      REDIS_HOST: redis
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+    secrets: [jwt_secret, vault_key, database_password, redis_password]
+    volumes: ["integration_keys:/var/lib/mailcraft/keys"]
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    init: true
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  migrate:
+    build: {context: ., target: migrate}
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_USER: mailcraft
+      DATABASE_NAME: mailcraft
+      DATABASE_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mailcraft
+      POSTGRES_DB: mailcraft
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U mailcraft"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    user: redis
+    entrypoint: [sh, /opt/mailcraft/redis-production.sh]
+    secrets: [redis_password]
+    volumes: ["redis_data:/data", "./scripts/redis-production.sh:/opt/mailcraft/redis-production.sh:ro"]
+    healthcheck:
+      test: [CMD-SHELL, "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+secrets:
+  jwt_secret: {file: "${JWT_SECRET_PATH:?Set JWT_SECRET_PATH}"}
+  vault_key: {file: "${VAULT_KEY_PATH:?Set VAULT_KEY_PATH}"}
+  database_password: {file: "${DATABASE_PASSWORD_PATH:?Set DATABASE_PASSWORD_PATH}"}
+  redis_password: {file: "${REDIS_PASSWORD_PATH:?Set REDIS_PASSWORD_PATH}"}
+volumes:
+  postgres_data:
+  redis_data:
+  integration_keys:
+  caddy_data:
+  caddy_config:

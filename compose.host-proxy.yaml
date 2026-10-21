@@ -1,0 +1,9 @@
+services:
+  gateway:
+    profiles: [standalone]
+  web:
+    depends_on:
+      api: {condition: service_healthy}
+    ports: ["127.0.0.1:${WEB_PORT:-8092}:8080"]
+    volumes:
+      - ./deploy/nginx.proxy.conf:/etc/nginx/conf.d/default.conf:ro

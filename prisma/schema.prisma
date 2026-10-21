@@ -1,0 +1,220 @@
+generator client {
+ provider = "prisma-client-js"
+}
+datasource db {
+ provider = "postgresql"
+ url = env("DATABASE_URL")
+}
+enum SubscriptionStatus {
+ subscribed
+ unsubscribed
+ bounced
+ complained
+}
+enum CampaignStatus {
+ draft
+ scheduled
+ sending
+ sent
+ failed
+}
+enum UserRole {
+ owner
+ editor
+ viewer
+}
+model Tenant {
+ id String @id @default(uuid())
+ name String
+ users User[]
+ domains Domain[]
+ contacts Contact[]
+ contactFields ContactField[]
+ contactViews ContactView[]
+ lists List[]
+ campaigns Campaign[]
+ templates EmailTemplate[]
+ dispatches EmailDispatch[]
+ events EmailEvent[]
+ integrations IntegrationCredential[]
+ testEmails TestEmail[]
+ sessions RefreshSession[]
+ createdAt DateTime @default(now()) @map("created_at")
+}
+model User {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ email String
+ passwordHash String @map("password_hash")
+ role UserRole @default(owner)
+ sessions RefreshSession[]
+ @@unique([tenantId, email])
+ @@unique([tenantId, id])
+}
+model Domain {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ hostname String
+ spfVerified Boolean @default(false) @map("spf_verified")
+ dkimVerified Boolean @default(false) @map("dkim_verified")
+ dmarcVerified Boolean @default(false) @map("dmarc_verified")
+ lockdownVerified Boolean @default(false) @map("lockdown_verified")
+ checkedAt DateTime? @map("checked_at")
+ @@unique([tenantId, hostname])
+}
+model ContactField {
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ key String
+ label String
+ @@id([tenantId, key])
+}
+model Contact {
+ archivedAt DateTime? @map("archived_at")
+ id String @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ email String
+ firstName String @map("first_name")
+ status SubscriptionStatus @default(subscribed)
+ attributes Json @default("{}")
+ memberships ContactList[]
+ dispatches EmailDispatch[]
+ testEmails TestEmail[]
+ createdAt DateTime @default(now()) @map("created_at")
+ @@id([tenantId, id])
+ @@unique([tenantId, email])
+ @@index([tenantId, status, createdAt])
+}
+model List {
+ id String @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ name String
+ memberships ContactList[]
+ @@id([tenantId, id])
+}
+model ContactList {
+ tenantId String @map("tenant_id")
+ contactId String @map("contact_id")
+ listId String @map("list_id")
+ contact Contact @relation(fields: [tenantId, contactId], references: [tenantId, id])
+ list List @relation(fields: [tenantId, listId], references: [tenantId, id])
+ @@id([tenantId, contactId, listId])
+ @@index([tenantId, listId])
+}
+model Campaign {
+ id String @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ name String
+ subject String
+ preheader String @default("")
+ document Json
+ status CampaignStatus @default(draft)
+ scheduledAt DateTime? @map("scheduled_at")
+ timeZone String @default("America/Lima") @map("time_zone")
+ dispatches EmailDispatch[]
+ testEmails TestEmail[]
+ createdAt DateTime @default(now()) @map("created_at")
+ @@id([tenantId, id])
+ @@index([tenantId, status, scheduledAt])
+}
+model EmailTemplate {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ name String
+ document Json
+ compiledHtml String @map("compiled_html")
+ @@index([tenantId])
+}
+model EmailDispatch {
+ id String @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ campaignId String @map("campaign_id")
+ contactId String @map("contact_id")
+ campaign Campaign @relation(fields: [tenantId, campaignId], references: [tenantId, id])
+ contact Contact @relation(fields: [tenantId, contactId], references: [tenantId, id])
+ providerId String? @map("provider_id")
+ status String @default("pending")
+ events EmailEvent[]
+ @@id([tenantId, id])
+ @@unique([tenantId, campaignId, contactId])
+ @@index([tenantId, status])
+}
+model EmailEvent {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ dispatchId String @map("dispatch_id")
+ dispatch EmailDispatch @relation(fields: [tenantId, dispatchId], references: [tenantId, id])
+ providerEventId String @map("provider_event_id")
+ type String
+ occurredAt DateTime @map("occurred_at")
+ @@unique([tenantId, providerEventId])
+ @@index([tenantId, dispatchId, occurredAt])
+}
+
+model IntegrationCredential {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ kind String
+ encryptedPayload String @map("encrypted_payload")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@unique([tenantId, kind])
+}
+
+model TestEmail {
+ id String @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ campaignId String @map("campaign_id")
+ campaign Campaign @relation(fields: [tenantId, campaignId], references: [tenantId, id])
+ contactId String @map("contact_id")
+ contact Contact @relation(fields: [tenantId, contactId], references: [tenantId, id])
+ idempotencyKey String @map("idempotency_key")
+ fingerprint String
+ status String @default("queued")
+ recipient String
+ fromEmail String @map("from_email")
+ subject String
+ html String
+ messageId String? @map("message_id")
+ errorCode String? @map("error_code")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@id([tenantId, id])
+ @@unique([tenantId, idempotencyKey])
+ @@index([status, updatedAt])
+}
+
+model RefreshSession {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ userId String @map("user_id")
+ user User @relation(fields: [tenantId, userId], references: [tenantId, id])
+ familyId String @map("family_id")
+ tokenHash String @map("token_hash")
+ expiresAt DateTime @map("expires_at")
+ revokedAt DateTime? @map("revoked_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([tenantId, userId, expiresAt])
+ @@index([tenantId, familyId])
+}
+
+model ContactView {
+ id String @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id])
+ name String
+ filters Json
+ columns Json
+ @@id([tenantId, id])
+ @@index([tenantId, name])
+}

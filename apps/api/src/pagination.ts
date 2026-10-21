@@ -1,0 +1,3 @@
+import {BadRequestException} from '@nestjs/common';
+export function pagination(page='1',size='25'):{page:number;pageSize:number}{if(typeof page!=='string'||typeof size!=='string'||!/^[1-9][0-9]{0,5}$/.test(page)||!['25','50','100'].includes(size))throw new BadRequestException('Paginación inválida. Usa páginas positivas y 25, 50 o 100 registros.');return {page:Number(page),pageSize:Number(size)};}
+export function pageMeta(total:number,page:number,pageSize:number){const totalPages=Math.max(1,Math.ceil(total/pageSize)),currentPage=Math.min(page,totalPages);return {total,page:currentPage,pageSize,totalPages,from:total?(currentPage-1)*pageSize+1:0,to:Math.min(currentPage*pageSize,total)};}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.angular/
+.env
+.env.*
+!.env.example
+!.env.production.example
+deploy/secrets/
+backups/
+coverage/
