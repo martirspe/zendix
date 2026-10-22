@@ -2,12 +2,16 @@
 
 ## [Unreleased]
 
+- Disable critical CSS inlining in production so styles load without the inline media-switch script blocked by the console CSP.
+
 - Align deployment command ergonomics with Habix: add `--skip-nginx`/`--skip-tls` workflows, retain the `--skip-host` alias, and document the operator flags while keeping pre-migration backups mandatory.
 - Align `DEPLOY.md`, the automatic deployment guide, production runbook and README around the same Habix-style VPS workflow and command names.
 - Use `/opt/zendix` as the canonical VPS checkout path in all deployment documentation.
 - Report Docker socket permission failures with an actionable group or sudo remediation and document the required VPS user setup.
 - Align the canonical VPS workflow with the existing projects: `/opt/zendix`, `sudo ./scripts/deploy.sh`, executable scripts and the `--first-run` alias.
 - Make `--skip-tls` a complete DNS-propagation workflow by validating HTTP and deferring the HTTPS check until certificate issuance.
+- Remove a broken legacy MailCraft Nginx symlink automatically before validating the renamed Zendix virtual host.
+- Remove a broken `zendix` enabled symlink before the first Nginx validation so the bootstrap can create its target.
 - Name the host Nginx virtual host exactly `zendix` without a file extension to match the VPS convention.
 - Add `DEPLOY.md` with Docker development, automated VPS deployment, Cloudflare/TLS, secrets, backups and post-deployment verification guidance; complete local and production environment examples.
 - Replace user-entered workspace identifiers with email/password sign-in, automatic organization creation and a credential-verified organization picker for existing multi-tenant accounts.
