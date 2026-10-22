@@ -37,15 +37,26 @@ on DNS-only during the first certificate issuance; after it succeeds, use
 **Full (strict)** if the record is proxied. Do not cache `/api/*`,
 `/unsubscribe/*`, or `/email-view/*`.
 
-Clone the repository on the VPS and run the deployment workflow from its root:
+Clone the repository in the standard project location used by your VPS:
 
 ```bash
-git clone https://github.com/martirspe/zendix.git mailcraft
-cd mailcraft
-bash scripts/deploy.sh --init
-bash scripts/deploy.sh --check
-bash scripts/deploy.sh --bootstrap-owner
+sudo mkdir -p /opt/zendix
+sudo chown "$USER:$USER" /opt/zendix
+git clone https://github.com/martirspe/zendix.git /opt/zendix
+cd /opt/zendix
+chmod +x scripts/*.sh
+sudo ./scripts/deploy.sh --first-run
+sudo ./scripts/deploy.sh --check
+sudo ./scripts/deploy.sh --bootstrap-owner
+sudo ./scripts/deploy.sh --pull
 ```
+
+For an existing installation, keep using `/opt/zendix` as the working tree;
+the scripts resolve Compose files and backups relative to that directory.
+
+The standard workflow runs deployment commands with `sudo`, matching the
+existing Habix and Reclamo Fácil projects. The `--first-run` option is the
+canonical name; `--init` remains an alias.
 
 `--init` creates `.env.production` and four persistent secret files without
 printing their values. It never replaces an existing complete secret set.
@@ -67,11 +78,23 @@ The script requires a clean checkout and performs a fast-forward-only pull. To
 validate the Docker stack without changing host Nginx or TLS, use:
 
 ```bash
-bash scripts/deploy.sh --skip-host
+bash scripts/deploy.sh --skip-nginx
 ```
 
 That mode reports private stack health only; it does not claim public HTTPS
 readiness.
+
+The deployment flags follow the same operator ergonomics as the Habix flow:
+
+```bash
+bash scripts/deploy.sh --pull                 # fast-forward and deploy
+bash scripts/deploy.sh --check                # preflight only
+bash scripts/deploy.sh --skip-nginx           # Docker only
+bash scripts/deploy.sh --skip-tls             # Nginx now, certificate later
+```
+
+`--skip-host` remains an alias for `--skip-nginx`. MailCraft always creates a
+pre-migration backup; there is no backup-bypass flag in the production workflow.
 
 ## Configuration and secrets
 

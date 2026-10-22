@@ -3,22 +3,40 @@
 set -euo pipefail
 umask 077
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-mode=deploy; do_pull=false; skip_host=false; bootstrap_owner=false
+mode=deploy; do_pull=false; skip_host=false; skip_tls=false; bootstrap_owner=false
 for argument in "$@"; do
  case "$argument" in
-  --init) mode=init ;;
+  --init|--first-run) mode=init ;;
   --check) mode=check ;;
   --pull) do_pull=true ;;
-  --skip-host) skip_host=true ;;
+  --skip-host|--skip-nginx) skip_host=true ;;
+  --skip-tls) skip_tls=true ;;
   --bootstrap-owner) bootstrap_owner=true ;;
-  --help) echo 'Usage: bash scripts/deploy.sh [--init | --check] [--pull] [--skip-host] [--bootstrap-owner]'; exit 0 ;;
+  --help)
+   echo 'Usage: sudo ./scripts/deploy.sh [--first-run | --check] [--pull] [--skip-nginx] [--skip-tls] [--bootstrap-owner]'
+   echo '  --first-run        create .env.production and persistent secrets'
+   echo '  --init             alias for --first-run'
+   echo '  --check            validate Docker, environment and Compose without changes'
+   echo '  --pull             fast-forward pull before deployment'
+   echo '  --skip-nginx       deploy Docker services without host Nginx/TLS changes'
+   echo '  --skip-tls         configure host Nginx but defer certificate issuance'
+   echo '  --bootstrap-owner  create the first owner after services are healthy'
+   exit 0 ;;
   *) echo "Unknown argument: $argument" >&2; exit 1 ;;
  esac
 done
 if [[ "$mode" == init ]]; then bash scripts/init-production.sh; exit 0; fi
 for dependency in docker curl; do command -v "$dependency" >/dev/null || { echo "Missing dependency: $dependency" >&2; exit 1; }; done
 docker compose version >/dev/null
-docker info >/dev/null
+if ! docker info >/dev/null 2>&1; then
+ if command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
+  echo "Docker is available only through sudo. Add ${USER:-the deploy user} to the docker group and start a new login session, or rerun with sudo." >&2
+ else
+  echo "Cannot access Docker at /var/run/docker.sock. Ensure Docker is running and add ${USER:-the deploy user} to the docker group, then log out and in again." >&2
+  echo "Temporary alternative: sudo bash scripts/deploy.sh --check" >&2
+ fi
+ exit 1
+fi
 [[ -f .env.production ]] || { echo 'Run bash scripts/deploy.sh --init first.' >&2; exit 1; }
 # Read only non-secret scalar settings; never execute the environment file as shell code.
 setting() { awk -v key="$1" 'index($0,key"=")==1 {sub("^[^=]*=","");sub("\r$","");print;exit}' .env.production; }
@@ -41,7 +59,7 @@ if [[ "$do_pull" == true ]]; then
  [[ -z "$(git status --porcelain)" ]] || { echo 'Commit or preserve local changes before --pull.' >&2; exit 1; }
  git pull --ff-only
  # Restart the script so newly pulled deployment code is consistently used.
- next_arguments=(); [[ "$skip_host" != true ]] || next_arguments+=(--skip-host); [[ "$bootstrap_owner" != true ]] || next_arguments+=(--bootstrap-owner)
+ next_arguments=(); [[ "$skip_host" != true ]] || next_arguments+=(--skip-nginx); [[ "$skip_tls" != true ]] || next_arguments+=(--skip-tls); [[ "$bootstrap_owner" != true ]] || next_arguments+=(--bootstrap-owner)
  exec bash scripts/deploy.sh "${next_arguments[@]}"
 fi
 trap 'echo "Deployment stopped. Existing data and secrets were retained; inspect Docker status and the failed step before retrying." >&2' ERR
@@ -70,7 +88,9 @@ if [[ "$bootstrap_owner" == true ]]; then
 fi
 curl --fail --silent --show-error "http://127.0.0.1:$WEB_PORT/api/health" >/dev/null
 if [[ "$skip_host" == true ]]; then echo 'Private stack is healthy. Host Nginx/TLS setup was skipped; public readiness is not asserted.'; exit 0; fi
-if [[ "$EUID" -eq 0 ]]; then bash scripts/bootstrap-host.sh "$APP_HOST" "$WEB_PORT" "$ACME_EMAIL"; else sudo bash scripts/bootstrap-host.sh "$APP_HOST" "$WEB_PORT" "$ACME_EMAIL"; fi
+host_arguments=(); [[ "$skip_tls" != true ]] || host_arguments+=(--skip-tls)
+host_arguments+=("$APP_HOST" "$WEB_PORT" "$ACME_EMAIL")
+if [[ "$EUID" -eq 0 ]]; then bash scripts/bootstrap-host.sh "${host_arguments[@]}"; else sudo bash scripts/bootstrap-host.sh "${host_arguments[@]}"; fi
 curl --fail --silent --show-error --retry 5 --retry-delay 2 "https://$APP_HOST/api/health" >/dev/null
 "${compose[@]}" ps
 echo "HTTPS console is available at https://$APP_HOST. SMTP/DNS setup and a real received preview still need console verification. Commercial sending remains gated."

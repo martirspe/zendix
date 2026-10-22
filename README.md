@@ -37,7 +37,7 @@ Signed unsubscribe links show a confirmation on GET and unsubscribe on POST; GET
 
 ## Production
 
-Read `docs/production.md` and `docs/production-readiness.md`. The separate production Compose file uses compiled Node code, static Nginx, a Caddy HTTPS gateway, required secrets, restricted containers, private data services, persistent encrypted credentials/DKIM keys, health checks and automatic migrations. It has no source mounts or development servers. Public registration is disabled by default; an operator can create an owner via standard input with the migration image.
+Read [DEPLOY.md](DEPLOY.md), [docs/automatic-deployment.md](docs/automatic-deployment.md) and `docs/production-readiness.md`. The production Compose file uses compiled Node code, static Nginx, required secrets, restricted containers, private data services, persistent encrypted credentials/DKIM keys, health checks and automatic migrations. It has no source mounts or development servers. Public registration is disabled by default; an operator can create an owner through `scripts/deploy.sh --bootstrap-owner`.
 
 Back up PostgreSQL together with the matching vault secret and DKIM key volume. Losing the encryption key makes stored credentials unrecoverable. Base image digests are pinned; dependency/image updates require rebuilding and revalidation.
 
@@ -60,4 +60,4 @@ Initial public testing and production share `app.zendix.site` on the VPS. The ro
 
 ## Automated VPS deployment
 
-Use the [automatic deployment guide](docs/automatic-deployment.md) for `bash scripts/deploy.sh --init`, preflight and deployment on `app.zendix.site`. This shared-host Nginx flow leaves the standalone Caddy deployment available as a separate manual option.
+Use [DEPLOY.md](DEPLOY.md) and the [automatic deployment guide](docs/automatic-deployment.md) for `bash scripts/deploy.sh --init`, preflight and deployment on `app.zendix.site`. The command names and operator flags follow the Habix deployment workflow.

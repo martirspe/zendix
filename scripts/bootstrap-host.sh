@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Configure only this application virtual host; shared Nginx remains in place.
 set -euo pipefail
-[[ $# -eq 3 ]] || { echo 'Usage: bootstrap-host.sh HOST PORT ACME_EMAIL' >&2; exit 1; }
+skip_tls=false
+if [[ "${1:-}" == '--skip-tls' ]]; then skip_tls=true; shift; fi
+[[ $# -eq 3 ]] || { echo 'Usage: bootstrap-host.sh [--skip-tls] HOST PORT ACME_EMAIL' >&2; exit 1; }
 app_host="$1"; upstream_port="$2"; certificate_email="$3"
 [[ "$app_host" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ && "$app_host" == *.* ]] || exit 1
 [[ "$upstream_port" =~ ^[0-9]+$ && "$upstream_port" -ge 1024 && "$upstream_port" -le 65535 ]] || exit 1
@@ -46,6 +48,10 @@ CONFIG
   systemctl reload nginx
 fi
 grep -F "proxy_pass http://127.0.0.1:${upstream_port};" "$config_path" >/dev/null || { echo "Existing app vhost uses a different upstream port. Update and validate it before continuing." >&2; exit 1; }
+if [[ "$skip_tls" == true ]]; then
+  echo 'Nginx configured; TLS issuance skipped by operator request.'
+  exit 0
+fi
 certbot --nginx --non-interactive --agree-tos --redirect --email "$certificate_email" -d "$app_host" --keep-until-expiring
 nginx -t
 systemctl reload nginx

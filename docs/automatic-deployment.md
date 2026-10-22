@@ -15,10 +15,20 @@ The operator runs these commands on the VPS. Repository preparation does not dep
 Upload or clone the project, enter its directory and run:
 
 ```bash
-bash scripts/deploy.sh --init
-bash scripts/deploy.sh --check
-bash scripts/deploy.sh --bootstrap-owner
+sudo mkdir -p /opt/zendix
+sudo chown "$USER:$USER" /opt/zendix
+cd /opt/zendix
+git clone https://github.com/martirspe/zendix.git .
+chmod +x scripts/*.sh
+sudo ./scripts/deploy.sh --first-run
+sudo ./scripts/deploy.sh --check
+sudo ./scripts/deploy.sh --bootstrap-owner
+sudo ./scripts/deploy.sh --pull
 ```
+
+This uses the same `/opt/zendix` and `sudo ./scripts/deploy.sh` convention as
+the other applications on the VPS. `--first-run` creates the production
+configuration; `--init` remains a compatible alias.
 
 Initialization asks for the certificate-notice email, creates .env.production and generates missing production secrets only for a completely new secret set. It never replaces existing secrets. An incomplete secret set aborts and must be recovered from its matching backup. Keep the environment file private. Default generated secret files are readable by their mounted non-root containers, inside an operator-only 0700 directory; do not loosen directory permissions or commit the files.
 
@@ -33,14 +43,16 @@ The final command verifies the public HTTPS health URL. DNS propagation, firewal
 ## Updates and private mode
 
 ```bash
-bash scripts/deploy.sh
+sudo ./scripts/deploy.sh
 # Only for a clean Git checkout with a configured upstream:
-bash scripts/deploy.sh --pull
+sudo ./scripts/deploy.sh --pull
 # Build/start the private stack without changing host Nginx or certificates:
-bash scripts/deploy.sh --skip-host
+sudo ./scripts/deploy.sh --skip-nginx
+# Configure host Nginx but defer certificate issuance:
+sudo ./scripts/deploy.sh --skip-tls
 ```
 
---pull refuses a dirty checkout and uses fast-forward only. --skip-host verifies the loopback stack, not public HTTPS. No command resets a database or deletes persistent volumes. There is no automatic application downgrade after a migration failure; retain backups and follow a schema-compatible recovery plan.
+--pull refuses a dirty checkout and uses fast-forward only. --skip-nginx verifies the loopback stack, not public HTTPS. --skip-tls configures the host virtual host while deferring certificate issuance. No command resets a database or deletes persistent volumes. There is no automatic application downgrade after a migration failure; retain backups and follow a schema-compatible recovery plan.
 
 Equivalent Compose commands for inspection:
 
