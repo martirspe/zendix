@@ -15,8 +15,8 @@ if ! command -v nginx >/dev/null || ! command -v certbot >/dev/null; then
   apt-get install -y nginx certbot python3-certbot-nginx
 fi
 nginx -t
-config_path="/etc/nginx/sites-available/mailcraft-${app_host}.conf"
-enabled_path="/etc/nginx/sites-enabled/mailcraft-${app_host}.conf"
+config_path="/etc/nginx/sites-available/zendix"
+enabled_path="/etc/nginx/sites-enabled/zendix"
 # Preserve successful Certbot-managed configuration on repeat deployments.
 if [[ ! -f "$config_path" ]]; then
   if nginx -T 2>&1 | grep -F "server_name ${app_host}" >/dev/null; then echo 'This hostname already has an Nginx configuration. Review it manually before proceeding.' >&2; exit 1; fi

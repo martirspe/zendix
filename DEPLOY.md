@@ -95,6 +95,8 @@ bash scripts/deploy.sh --skip-tls             # Nginx now, certificate later
 
 `--skip-host` remains an alias for `--skip-nginx`. MailCraft always creates a
 pre-migration backup; there is no backup-bypass flag in the production workflow.
+With `--skip-tls`, the script validates HTTP only. After the Cloudflare A
+record propagates, rerun without `--skip-tls` to request the certificate.
 
 ## Configuration and secrets
 

@@ -54,6 +54,10 @@ sudo ./scripts/deploy.sh --skip-tls
 
 --pull refuses a dirty checkout and uses fast-forward only. --skip-nginx verifies the loopback stack, not public HTTPS. --skip-tls configures the host virtual host while deferring certificate issuance. No command resets a database or deletes persistent volumes. There is no automatic application downgrade after a migration failure; retain backups and follow a schema-compatible recovery plan.
 
+When `--skip-tls` is used, the script checks the HTTP route only. After the
+Cloudflare A record has propagated, rerun `sudo ./scripts/deploy.sh` without
+`--skip-tls` so Certbot can complete the certificate challenge.
+
 Equivalent Compose commands for inspection:
 
 ```bash

@@ -91,6 +91,12 @@ if [[ "$skip_host" == true ]]; then echo 'Private stack is healthy. Host Nginx/T
 host_arguments=(); [[ "$skip_tls" != true ]] || host_arguments+=(--skip-tls)
 host_arguments+=("$APP_HOST" "$WEB_PORT" "$ACME_EMAIL")
 if [[ "$EUID" -eq 0 ]]; then bash scripts/bootstrap-host.sh "${host_arguments[@]}"; else sudo bash scripts/bootstrap-host.sh "${host_arguments[@]}"; fi
+if [[ "$skip_tls" == true ]]; then
+ curl --fail --silent --show-error --retry 5 --retry-delay 2 "http://$APP_HOST/api/health" >/dev/null
+ "${compose[@]}" ps
+ echo "HTTP console upstream is configured at http://$APP_HOST. TLS issuance was skipped; point DNS to this VPS and rerun without --skip-tls. Commercial sending remains gated."
+ exit 0
+fi
 curl --fail --silent --show-error --retry 5 --retry-delay 2 "https://$APP_HOST/api/health" >/dev/null
 "${compose[@]}" ps
 echo "HTTPS console is available at https://$APP_HOST. SMTP/DNS setup and a real received preview still need console verification. Commercial sending remains gated."
