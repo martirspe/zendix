@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Add `DEPLOY.md` with Docker development, automated VPS deployment, Cloudflare/TLS, secrets, backups and post-deployment verification guidance; complete local and production environment examples.
 - Replace user-entered workspace identifiers with email/password sign-in, automatic organization creation and a credential-verified organization picker for existing multi-tenant accounts.
 - Add inline access errors, browser autocomplete, Enter submission and a guided account-to-connections path; preserve production registration policy.
 - Add persisted campaign review checks without enabling commercial dispatch before provider-event and audience safeguards are complete.
