@@ -7,7 +7,8 @@ import {spawnSync} from 'node:child_process';
 
 function fixture(){
  const root=mkdtempSync(join(tmpdir(),'mailcraft-deploy-'));
- for(const folder of ['scripts','bin','deploy/secrets'])mkdirSync(join(root,folder),{recursive:true});
+ for(const folder of ['scripts','bin','deploy','deploy/secrets'])mkdirSync(join(root,folder),{recursive:true});
+ writeFileSync(join(root,'deploy/nginx.proxy.conf'),'events {}\n');
  for(const script of ['deploy.sh','init-production.sh','bootstrap-host.sh'])copyFileSync('scripts/'+script,join(root,'scripts',script));
  writeFileSync(join(root,'.env.production'),'APP_HOST=app.zendix.site\nACME_EMAIL=operator@example.invalid\nWEB_PORT=8092\n'+['jwt_secret','vault_key','database_password','redis_password'].map(name=>name.toUpperCase()+'_PATH=./deploy/secrets/'+name).join('\n')+'\nAUTH_EMAIL_API_KEY_PATH=./deploy/secrets/auth_email_api_key\n');
  for(const name of ['jwt_secret','vault_key','database_password','redis_password'])writeFileSync(join(root,'deploy/secrets',name),'synthetic-test-value');
