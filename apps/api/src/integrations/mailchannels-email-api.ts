@@ -39,10 +39,12 @@ export class MailchannelsEmailApi {
       const enroll=await request('/webhook?endpoint='+encodeURIComponent(webhookUrl),{method:'POST'});
       if(!enroll.ok)throw new BadRequestException({code:'EMAIL_API_WEBHOOK_FAILED',message:'MailChannels no pudo registrar el webhook seguro de MailCraft.'});
     }
-    const validation=await request('/webhook/validate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({request_id:'mailcraft-validation-'+tenantId})});
+    // MailChannels limits validation request IDs to 28 characters.
+    const validationRequestId=('mc-'+tenantId.replace(/-/g,'')).slice(0,28);
+    const validation=await request('/webhook/validate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({request_id:validationRequestId})});
     if(!validation.ok)throw new BadRequestException({code:'EMAIL_API_WEBHOOK_FAILED',message:'No se pudo validar la recepción HTTPS del webhook de MailCraft.'});
-    const validationResult=await validation.json() as {all_passed?:boolean};
-    if(validationResult.all_passed!==true)throw new BadRequestException({code:'EMAIL_API_WEBHOOK_FAILED',message:'MailChannels no confirmó la recepción del evento de validación.'});
+    const validationResult=await validation.json() as {allPassed?:boolean;all_passed?:boolean};
+    if(validationResult.allPassed!==true&&validationResult.all_passed!==true)throw new BadRequestException({code:'EMAIL_API_WEBHOOK_FAILED',message:'MailChannels no confirmó la recepción del evento de validación.'});
     await this.db.emailProviderAccount.update({where:{tenantId_provider:{tenantId,provider:'mailchannels'}},data:{webhookVerifiedAt:new Date()}});
     return {verified:true};
   }
