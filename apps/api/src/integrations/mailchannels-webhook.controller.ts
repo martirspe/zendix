@@ -30,7 +30,10 @@ export class MailchannelsWebhookController {
     if(verified.error||!verified.data)throw new UnauthorizedException('Firma de webhook inválida.');
     let payload:unknown;
     try{payload=JSON.parse(rawBody.toString('utf8')) as unknown;}catch{throw new ForbiddenException('El lote del proveedor no contiene JSON válido.');}
-    if(!Array.isArray(payload)||payload.length===0||payload.length>1000)throw new ForbiddenException('El lote del proveedor debe contener entre 1 y 1 000 eventos.');
-    return this.events.receive(payload);
+    // MailChannels sends webhook validation as one event object, while normal
+    // delivery notifications arrive as a batch. Normalize both shapes here.
+    const events=Array.isArray(payload)?payload:[payload];
+    if(events.length===0||events.length>1000)throw new ForbiddenException('El lote del proveedor debe contener entre 1 y 1 000 eventos.');
+    return this.events.receive(events);
   }
 }
