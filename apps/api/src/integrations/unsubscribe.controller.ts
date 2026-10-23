@@ -4,25 +4,37 @@ import type { FastifyReply } from 'fastify';
 import { SecretVault } from './secret-vault';
 import { Database } from '../database';
 
-export function signUnsubscribe(tenantId:string,contactId:string,key:Buffer):string {
-  const payload=Buffer.from(JSON.stringify({tenantId,contactId})).toString('base64url');
-  return payload+'.'+createHmac('sha256',key).update('unsubscribe:'+payload).digest('base64url');
+function compactUuid(value:string):string {
+  if(!/^[\da-f]{8}-[\da-f]{4}-[1-8][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i.test(value))throw new Error('Invalid identifier');
+  return Buffer.from(value.replaceAll('-',''),'hex').toString('base64url');
 }
-export function verifyUnsubscribe(token:string,key:Buffer):{tenantId:string;contactId:string} {
-  const [payload,signature,...extra]=token.split('.');
-  if(!payload||!signature||extra.length||token.length>1024)throw new Error('Invalid token');
-  const expected=createHmac('sha256',key).update('unsubscribe:'+payload).digest();
-  const actual=Buffer.from(signature,'base64url');
-  if(actual.length!==expected.length||!timingSafeEqual(actual,expected))throw new Error('Invalid token');
-  const parsed=JSON.parse(Buffer.from(payload,'base64url').toString('utf8')) as {tenantId?:unknown;contactId?:unknown};
-  if(typeof parsed.tenantId!=='string'||typeof parsed.contactId!=='string')throw new Error('Invalid token');
-  return {tenantId:parsed.tenantId,contactId:parsed.contactId};
+function expandUuid(value:string):string {
+  if(!/^[A-Za-z0-9_-]{22}$/.test(value))throw new Error('Invalid identifier');
+  const hex=Buffer.from(value,'base64url').toString('hex');
+  if(hex.length!==32)throw new Error('Invalid identifier');
+  return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+}
+export function signUnsubscribe(tenantId:string,contactId:string,key:Buffer):string {
+  const identity=compactUuid(tenantId)+'.'+compactUuid(contactId);
+  const signature=createHmac('sha256',key).update('unsubscribe:'+identity).digest('base64url');
+  return identity+'.'+signature;
 }
 
 @Controller('unsubscribe')
 export class UnsubscribeController {
   constructor(@Inject(SecretVault) private readonly vault:SecretVault,@Inject(Database) private readonly db:Database){}
-  private async identity(token:string){try{return verifyUnsubscribe(token,await this.vault.masterKey());}catch{throw new BadRequestException('Enlace de baja inválido.');}}
+  private async identity(token:string){
+    try{
+      const match=/^([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(token);if(!match)throw new Error('Invalid token');
+      const tenantId=expandUuid(match[1]??''),contactId=expandUuid(match[2]??''),signature=match[3]??'';
+      const key=await this.vault.masterKey();
+      const expected=createHmac('sha256',key).update('unsubscribe:'+match[1]+'.'+match[2]).digest(),actual=Buffer.from(signature,'base64url');
+      if(actual.length!==expected.length||!timingSafeEqual(actual,expected))throw new Error('Invalid signature');
+      const contact=await this.db.contact.findUnique({where:{tenantId_id:{tenantId,id:contactId}},select:{tenantId:true,id:true,archivedAt:true,status:true}});
+      if(contact&&!contact.archivedAt&&['subscribed','unsubscribed'].includes(contact.status))return {tenantId:contact.tenantId,contactId:contact.id};
+    }catch{}
+    throw new BadRequestException('Enlace de baja inválido.');
+  }
   @Get(':token')
   async confirm(@Param('token') token:string,@Res() reply:FastifyReply){
     await this.identity(token);

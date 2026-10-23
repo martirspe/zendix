@@ -23,10 +23,20 @@ enum UserRole {
  editor
  viewer
 }
+enum EmailProvider {
+ mailchannels
+ ses
+}
+enum ProviderEventStatus {
+ received
+ processed
+ failed
+}
 model Tenant {
  id String @id @default(uuid())
  name String
  users User[]
+ authChallenges AuthChallenge[]
  domains Domain[]
  contacts Contact[]
  contactFields ContactField[]
@@ -37,6 +47,8 @@ model Tenant {
  dispatches EmailDispatch[]
  events EmailEvent[]
  integrations IntegrationCredential[]
+ providerAccounts EmailProviderAccount[]
+ providerEvents ProviderWebhookEvent[]
  testEmails TestEmail[]
  sessions RefreshSession[]
  createdAt DateTime @default(now()) @map("created_at")
@@ -46,11 +58,32 @@ model User {
  tenantId String @map("tenant_id")
  tenant Tenant @relation(fields: [tenantId], references: [id])
  email String
+ googleSub String? @map("google_sub")
+ emailVerified Boolean @default(true) @map("email_verified")
+ emailVerifiedAt DateTime? @map("email_verified_at")
+ firstName String @default("") @map("first_name")
+ lastName String @default("") @map("last_name")
+ termsAcceptedAt DateTime? @map("terms_accepted_at")
  passwordHash String @map("password_hash")
  role UserRole @default(owner)
  sessions RefreshSession[]
  @@unique([tenantId, email])
  @@unique([tenantId, id])
+ @@unique([tenantId, googleSub])
+}
+model AuthChallenge {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+ email String
+ purpose String
+ tokenHash String @map("token_hash")
+ expiresAt DateTime @map("expires_at")
+ attempts Int @default(0)
+ consumedAt DateTime? @map("consumed_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([tenantId, email, purpose, createdAt])
+ @@index([tenantId, expiresAt])
 }
 model Domain {
  id String @id @default(uuid())
@@ -94,6 +127,7 @@ model List {
  tenant Tenant @relation(fields: [tenantId], references: [id])
  name String
  memberships ContactList[]
+ campaignAudiences CampaignAudience[]
  @@id([tenantId, id])
 }
 model ContactList {
@@ -111,6 +145,8 @@ model Campaign {
  tenant Tenant @relation(fields: [tenantId], references: [id])
  name String
  subject String
+ subjectVariant String? @map("subject_variant")
+ variantPercent Int? @map("variant_percent")
  preheader String @default("")
  document Json
  status CampaignStatus @default(draft)
@@ -118,9 +154,19 @@ model Campaign {
  timeZone String @default("America/Lima") @map("time_zone")
  dispatches EmailDispatch[]
  testEmails TestEmail[]
+ audiences CampaignAudience[]
  createdAt DateTime @default(now()) @map("created_at")
  @@id([tenantId, id])
  @@index([tenantId, status, scheduledAt])
+}
+model CampaignAudience {
+ tenantId String @map("tenant_id")
+ campaignId String @map("campaign_id")
+ listId String @map("list_id")
+ campaign Campaign @relation(fields: [tenantId, campaignId], references: [tenantId, id], onDelete: Cascade)
+ list List @relation(fields: [tenantId, listId], references: [tenantId, id], onDelete: Cascade)
+ @@id([tenantId, campaignId, listId])
+ @@index([tenantId, listId])
 }
 model EmailTemplate {
  id String @id @default(uuid())
@@ -140,11 +186,51 @@ model EmailDispatch {
  campaign Campaign @relation(fields: [tenantId, campaignId], references: [tenantId, id])
  contact Contact @relation(fields: [tenantId, contactId], references: [tenantId, id])
  providerId String? @map("provider_id")
+ provider EmailProvider @default(mailchannels)
+ recipient String?
+ fromEmail String? @map("from_email")
+ subject String?
+ html String? @db.Text
  status String @default("pending")
  events EmailEvent[]
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
  @@id([tenantId, id])
  @@unique([tenantId, campaignId, contactId])
  @@index([tenantId, status])
+ @@index([tenantId, provider, providerId])
+}
+
+model EmailProviderAccount {
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+ provider EmailProvider
+ accountHandle String @map("account_handle")
+ webhookVerifiedAt DateTime? @map("webhook_verified_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@id([tenantId, provider])
+ @@unique([provider, accountHandle])
+}
+
+model ProviderWebhookEvent {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+ provider EmailProvider
+ providerEventId String @map("provider_event_id")
+ accountHandle String @map("account_handle")
+ requestId String? @map("request_id")
+ eventType String @map("event_type")
+ occurredAt DateTime @map("occurred_at")
+ payload Json
+ status ProviderEventStatus @default(received)
+ attempts Int @default(0)
+ processedAt DateTime? @map("processed_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@unique([tenantId, providerEventId])
+ @@index([tenantId, status, createdAt])
+ @@index([tenantId, provider, requestId])
 }
 model EmailEvent {
  id String @id @default(uuid())
@@ -154,6 +240,7 @@ model EmailEvent {
  dispatch EmailDispatch @relation(fields: [tenantId, dispatchId], references: [tenantId, id])
  providerEventId String @map("provider_event_id")
  type String
+ payload Json?
  occurredAt DateTime @map("occurred_at")
  @@unique([tenantId, providerEventId])
  @@index([tenantId, dispatchId, occurredAt])

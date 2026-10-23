@@ -31,3 +31,14 @@ ds-icon{display:inline-flex;align-items:center;vertical-align:middle;line-height
 .readiness-state { background: var(--background); border-radius: 6px; padding: 5px 8px; font-size: 12px; font-weight: 700; }
 .readiness-state.ready { background: var(--primary); }
 .sending-gate { border-left: 3px solid var(--border); padding-left: 16px; margin-top: 20px; }
+.audience-list-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.audience-list-options>label{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer}.audience-list-options input{accent-color:var(--primary);width:16px;height:16px}.audience-list-options strong,.audience-list-options small{display:block}.audience-list-options small{color:var(--muted);font-size:10px;margin-top:4px}
+
+.campaign-send-dialog dl{display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:8px 16px;margin:20px 0}.campaign-send-dialog dt{color:var(--muted)}.campaign-send-dialog dd{margin:0;overflow-wrap:anywhere;font-weight:600}
+.analytics-panel { padding: 24px; }
+.analytics-panel .section-title { align-items: end; gap: 16px; flex-wrap: wrap; }
+.analytics-panel h3 { margin: 26px 0 12px; }
+.analytics-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 20px 0; }
+.analytics-kpis article { display: grid; gap: 8px; padding: 16px; background: var(--surface-subtle, #f7f8fa); border: 1px solid var(--border, #e4e7eb); border-radius: 10px; }
+.analytics-kpis small { color: var(--text-muted, #667085); }
+.analytics-kpis strong { font-size: 1.2rem; }
+.account-profile dl{display:grid;grid-template-columns:minmax(130px,1fr) 2fr;gap:10px 18px;margin:16px 0 0}.account-profile dt{color:#7b8592;font-size:12px}.account-profile dd{margin:0;color:#18212f;font-size:12px;font-weight:650;overflow-wrap:anywhere}@media(max-width:520px){.account-profile dl{grid-template-columns:1fr;gap:4px}.account-profile dd{margin-bottom:9px}}

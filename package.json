@@ -12,7 +12,7 @@
     "db:validate": "prisma validate --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "test:api": "node scripts/api-smoke.mjs",
-    "test:smtp": "node scripts/smtp-smoke.mjs",
+    "test:email-api": "node scripts/email-api-smoke.mjs",
     "test:deploy": "node --test scripts/deploy.test.mjs"
   },
   "devDependencies": {

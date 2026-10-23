@@ -37,6 +37,8 @@ services:
       NODE_ENV: development
       DEV_SENDER_EMAIL: ${DEV_SENDER_EMAIL:-}
       DEV_TEST_RECIPIENT: ${DEV_TEST_RECIPIENT:-}
+      GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       MAILCRAFT_KEYS_PATH: /var/lib/mailcraft/keys
     ports: ["127.0.0.1:3000:3000"]
     volumes:

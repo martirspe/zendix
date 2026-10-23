@@ -1,0 +1,76 @@
+<main class="auth-shell" aria-labelledby="auth-title">
+  <header class="auth-brand-row">
+    <a class="auth-brand" href="/" aria-label="MailCraft, inicio"><span class="auth-brand-mark">m<span>↗</span></span><span>mailcraft<span class="auth-brand-dot">®</span></span></a>
+    <span class="auth-product">EMAIL MARKETING</span>
+  </header>
+  <section class="auth-card">
+    <div class="auth-heading">
+      <span class="auth-eyebrow">{{mode()==='register'?'EMPIEZA A CONECTAR':phase()==='password'?'TU ESPACIO, TUS IDEAS':'ACCESO SEGURO'}}</span>
+      <h1 id="auth-title">{{mode()==='register'?'Crear cuenta':phase()==='email'?'Iniciar sesión':phase()==='code'?'Revisa tu correo':phase()==='verification'?'Verifica tu correo':phase()==='forgot'?'Recuperar contraseña':phase()==='reset'?'Nueva contraseña':'Iniciar sesión'}}</h1>
+      <p>{{mode()==='register'?'Crea tu cuenta y configura tu organización en un solo paso.':phase()==='email'?'Accede con un código de un solo uso, sin recordar contraseñas.':phase()==='code'?'Ingresa el código de acceso que enviamos a tu correo.':phase()==='verification'?'Confirma tu dirección antes de acceder a tu organización.':phase()==='forgot'?'Te enviaremos un código si el correo tiene una cuenta.':phase()==='reset'?'Elige una contraseña segura para proteger tu cuenta.':'Accede a tus campañas, contactos y conexiones.'}}</p>
+    </div>
+
+    @if(phase()==='password'||phase()==='email') {
+      <nav class="auth-tabs" aria-label="Acceso a tu cuenta">
+        <button type="button" [class.selected]="mode()==='login'" [attr.aria-current]="mode()==='login'?'page':null" [disabled]="loading()" (click)="changeMode('login')">Iniciar sesión</button>
+        @if(registrationAllowed()) { <button type="button" [class.selected]="mode()==='register'" [attr.aria-current]="mode()==='register'?'page':null" [disabled]="loading()" (click)="changeMode('register')">Crear cuenta</button> }
+      </nav>
+    }
+
+    @if(sentMessage()) { <p class="auth-success" role="status">{{sentMessage()}}</p> }
+    @if(error()) { <p class="auth-error" role="alert">{{error()}}</p> }
+
+    @if(workspaces().length) {
+      <fieldset class="workspace-picker">
+        <legend>Selecciona tu organización</legend>
+        <p>Tu identidad está verificada. Elige el espacio al que quieres acceder.</p>
+        @for(workspace of workspaces();track workspace.id) {
+          <button type="button" class="workspace-choice" [disabled]="loading()" (click)="selectWorkspace($event,workspace.id)"><span class="workspace-avatar">{{workspace.name.slice(0,1).toUpperCase()}}</span><span>{{workspace.name}}<small>Espacio de trabajo</small></span><span class="workspace-arrow" aria-hidden="true">→</span></button>
+        }
+        <button type="button" class="auth-back" [disabled]="loading()" (click)="resetWorkspaceChoices()">Volver al acceso</button>
+      </fieldset>
+    } @else {
+      <form class="auth-form" [attr.aria-busy]="loading()" (submit)="submit($event)">
+        @if(googleAuthEnabled()) { <div class="auth-google"><div #googleButton class="auth-google-button" aria-label="Continuar con Google"></div>@if(googleError()){<p class="auth-mode-note" role="status">{{googleError()}}</p>}@if(mode()==='register'&&!termsAccepted()){<p class="auth-mode-note">Para continuar con Google, acepta los términos al final del formulario.</p>}</div><div class="auth-divider"><span>o continúa con tu correo</span></div> }
+        @if(mode()==='register'&&phase()==='password') {
+          <div class="auth-name-row">
+            <label>Nombre<input type="text" autocomplete="given-name" maxlength="100" placeholder="Tu nombre" [value]="firstName()" [readOnly]="loading()" (input)="firstName.set(inputValue($event))"></label>
+            <label>Apellido<input type="text" autocomplete="family-name" maxlength="100" placeholder="Tu apellido" [value]="lastName()" [readOnly]="loading()" (input)="lastName.set(inputValue($event))"></label>
+          </div>
+        }
+        @if(phase()==='password'||phase()==='email'||phase()==='forgot'||phase()==='reset') {
+          <label>Correo electrónico<input type="email" autocomplete="email" maxlength="254" required placeholder="tu@empresa.com" [readOnly]="loading()||phase()==='reset'" [value]="email()" (input)="email.set(inputValue($event));resetWorkspaceChoices()"></label>
+        }
+        @if(phase()==='password') {
+          <label>Contraseña<span class="auth-password-field"><input [type]="passwordVisible()?'text':'password'" [attr.autocomplete]="mode()==='register'?'new-password':'current-password'" [attr.minlength]="mode()==='register'?12:1" maxlength="128" required [placeholder]="mode()==='register'?'Al menos 12 caracteres':'Tu contraseña'" [value]="password()" [readOnly]="loading()" (input)="password.set(inputValue($event));resetWorkspaceChoices()"><button type="button" class="password-toggle" [attr.aria-label]="passwordVisible()?'Ocultar contraseña':'Mostrar contraseña'" (click)="passwordVisible.set(!passwordVisible())">{{passwordVisible()?'Ocultar':'Mostrar'}}</button></span></label>
+          @if(mode()==='login') { <div class="auth-inline-link"><button type="button" (click)="phase.set('forgot');error.set('');sentMessage.set('')">¿Olvidaste tu contraseña?</button></div> }
+        }
+        @if(mode()==='register'&&phase()==='password') {
+          <label class="auth-terms"><input type="checkbox" [checked]="termsAccepted()" [disabled]="loading()" (change)="termsAccepted.set(checkedValue($event))"><span>Acepto los <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">términos</a> y la <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">política de privacidad</a>.</span></label>
+        }
+        @if(phase()==='code'||phase()==='verification'||phase()==='reset') {
+          <label>Código de 6 dígitos<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="000000" [value]="code()" [readOnly]="loading()" (input)="code.set(codeValue($event))"></label>
+        }
+        @if(phase()==='reset') {
+          <label>Nueva contraseña<span class="auth-password-field"><input [type]="passwordVisible()?'text':'password'" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="Al menos 12 caracteres" [value]="newPassword()" [readOnly]="loading()" (input)="newPassword.set(inputValue($event))"></span></label>
+          <label>Confirmar contraseña<input [type]="passwordVisible()?'text':'password'" autocomplete="new-password" minlength="12" maxlength="128" required [value]="confirmPassword()" [readOnly]="loading()" (input)="confirmPassword.set(inputValue($event))"></label>
+        }
+        @if(phase()==='email') {
+          <button type="submit" class="auth-submit" [disabled]="loading()"><span>{{loading()?'Enviando código…':'Enviar código de acceso'}}</span><span aria-hidden="true">→</span></button>
+          <p class="auth-mode-note">Te enviaremos un código de un solo uso. Revisa también la carpeta de spam.</p>
+          <button type="button" class="auth-secondary" [disabled]="loading()" (click)="phase.set('password')">Usar contraseña</button>
+        } @else {
+          <button type="submit" class="auth-submit" [disabled]="loading() || (mode()==='register'&&!registrationAllowed())"><span>{{loading()?(mode()==='register'?'Creando tu cuenta…':phase()==='code'?'Verificando código…':'Procesando…'):mode()==='register'?'Crear cuenta':phase()==='verification'?'Verificar y continuar':phase()==='reset'?'Guardar contraseña':phase()==='forgot'?'Enviar código':phase()==='code'?'Entrar con el código':mode()==='register'?'Crear cuenta':'Iniciar sesión'}}</span><span aria-hidden="true">→</span></button>
+        }
+      </form>
+    }
+
+    @if(phase()==='verification') { <div class="auth-actions"><span>¿No recibiste el código?</span><button type="button" [disabled]="loading()" (click)="resendVerification()">Reenviar código</button></div> }
+    @if(phase()==='code') { <div class="auth-actions"><span>¿No recibiste el código?</span><button type="button" [disabled]="loading()" (click)="requestAccessCode()">Reenviar código</button></div> }
+    @if(phase()==='reset') { <div class="auth-actions"><span>¿El código venció?</span><button type="button" [disabled]="loading()" (click)="requestPasswordReset()">Solicitar otro código</button></div> }
+    @if(phase()==='forgot'||phase()==='code'||phase()==='verification'||phase()==='reset') { <button type="button" class="auth-back" [disabled]="loading()" (click)="backToLogin()">Volver a iniciar sesión</button> }
+    @if(mode()==='login'&&phase()==='password'&&!workspaces().length) { <p class="auth-mode-note">{{productionMode()?'Tu sesión se renueva de forma segura en este dispositivo.':'En la demostración, los datos locales están separados de los de tu cuenta.'}}</p> }
+    @if(mode()==='register'&&!registrationAllowed()) { <p class="auth-error" role="status">El registro público está cerrado. Solicita acceso al administrador de MailCraft.</p> }
+    <footer class="auth-footer"><span>© {{currentYear}} MailCraft</span><span>Diseña y conecta con intención</span></footer>
+  </section>
+</main>

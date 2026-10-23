@@ -51,6 +51,9 @@ for name in jwt_secret vault_key database_password redis_password; do
  [[ "$(setting "$key")" == "$expected" && -s "$expected" ]] || { echo "Automated deployment requires the configured default secret file: $expected. Existing custom installations must use the manual runbook." >&2; exit 1; }
  export "$key=$expected"
 done
+auth_key_path="$(setting AUTH_EMAIL_API_KEY_PATH)"
+[[ "$auth_key_path" == ./deploy/secrets/auth_email_api_key && -f ./deploy/secrets/auth_email_api_key ]] || { echo 'Set up the optional authentication MailChannels key file at ./deploy/secrets/auth_email_api_key; it may be empty until authentication email is configured.' >&2; exit 1; }
+export AUTH_EMAIL_API_KEY_PATH="$auth_key_path" AUTH_EMAIL_FROM_EMAIL="$(setting AUTH_EMAIL_FROM_EMAIL)" AUTH_EMAIL_FROM_NAME="$(setting AUTH_EMAIL_FROM_NAME)" AUTH_REQUIRE_EMAIL_VERIFICATION="$(setting AUTH_REQUIRE_EMAIL_VERIFICATION)" GOOGLE_OAUTH_ENABLED="$(setting GOOGLE_OAUTH_ENABLED)" GOOGLE_CLIENT_ID="$(setting GOOGLE_CLIENT_ID)"
 compose=(docker compose --env-file .env.production -p mailcraft-production -f compose.production.yaml -f compose.host-proxy.yaml)
 "${compose[@]}" config --quiet
 if [[ "$mode" == check ]]; then echo 'Configuration and Docker preflight passed. No deployment or host changes performed.'; exit 0; fi
@@ -71,7 +74,7 @@ backup_directory="backups/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -m 700 -p "$backup_directory"
 "${compose[@]}" exec -T postgres pg_dump -U mailcraft -Fc mailcraft > "$backup_directory/database.dump"
 cp .env.production "$backup_directory/configuration.env"
-tar -czf "$backup_directory/secrets.tar.gz" deploy/secrets/jwt_secret deploy/secrets/vault_key deploy/secrets/database_password deploy/secrets/redis_password
+tar -czf "$backup_directory/secrets.tar.gz" deploy/secrets/jwt_secret deploy/secrets/vault_key deploy/secrets/database_password deploy/secrets/redis_password deploy/secrets/auth_email_api_key
 "${compose[@]}" run --rm -T --no-deps --entrypoint tar api -C /var/lib/mailcraft/keys -czf - . > "$backup_directory/dkim.tar.gz"
 [[ -s "$backup_directory/database.dump" && -s "$backup_directory/dkim.tar.gz" ]] || exit 1
 echo "Private pre-migration backup: $backup_directory. Move an encrypted copy off-host."

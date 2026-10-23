@@ -2,9 +2,9 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { createHash } from 'node:crypto';
 import { Database } from '../database';
 import { SecretVault } from './secret-vault';
-import { MailchannelsSmtp } from './mailchannels-smtp';
+import { MailchannelsEmailApi } from './mailchannels-email-api';
 import { ownershipRecord } from './domain-ownership';
-import { DnsRecord, planDns } from './cloudflare-plan';
+import { DnsRecord, planDns, txtContent } from './cloudflare-plan';
 import {validateSpfBudget} from './spf-budget';
 import {Resolver} from 'node:dns/promises';
 
@@ -14,7 +14,7 @@ interface CloudflareResponse<T> {success:boolean;result:T;result_info?:{total_pa
 
 @Injectable()
 export class CloudflareService {
-  constructor(@Inject(Database) private readonly db: Database, @Inject(SecretVault) private readonly vault: SecretVault, @Inject(MailchannelsSmtp) private readonly smtp: MailchannelsSmtp) {}
+  constructor(@Inject(Database) private readonly db: Database, @Inject(SecretVault) private readonly vault: SecretVault, @Inject(MailchannelsEmailApi) private readonly emailApi: MailchannelsEmailApi) {}
   protected async resolveSpf(hostname:string):Promise<string[]>{const resolver=new Resolver({timeout:3000,tries:1});return (await resolver.resolveTxt(hostname)).map(parts=>parts.join(''));}
 
   private async request<T>(token:string,path:string,method='GET',body?:unknown):Promise<CloudflareResponse<T>> {
@@ -30,7 +30,7 @@ export class CloudflareService {
   async configure(tenantId:string,domainId:string,newToken?:string) {
     const domain=await this.db.domain.findFirst({where:{tenantId,id:domainId}});
     if(!domain)throw new NotFoundException();
-    const settings=await this.smtp.settings(tenantId);
+    const settings=await this.emailApi.settings(tenantId);
     if(settings.fromEmail.split('@')[1]!==domain.hostname)throw new BadRequestException({code:'SENDER_DOMAIN_MISMATCH',message:'El dominio debe coincidir con el remitente configurado en MailChannels.'});
     const stored=await this.vault.load<CloudflareSettings>(tenantId,'cloudflare');
     const token=newToken??stored?.token;
@@ -40,7 +40,6 @@ export class CloudflareService {
     if(!zone)throw new BadRequestException({code:'CLOUDFLARE_ZONE_NOT_FOUND',message:'No se encontró una zona activa para este dominio. Revisa el token y los nameservers.'});
     await this.vault.store(tenantId,'cloudflare',{token,zoneId:zone.id,zoneName:zone.name});
     const selector='mailcraft';
-    const key=await this.vault.dkim(tenantId,domain.hostname);
     const names=[domain.hostname,'_mailcraft.'+domain.hostname,'_dmarc.'+domain.hostname,selector+'._domainkey.'+domain.hostname,'_mailchannels.'+domain.hostname];
     const readRecords=async()=>{
       const pages=await Promise.all(names.map(name=>this.request<DnsRecord[]>(token,'/zones/'+zone.id+'/dns_records?name='+encodeURIComponent(name)+'&per_page=100')));
@@ -49,7 +48,12 @@ export class CloudflareService {
     };
     const records=await readRecords();
     let changes;
-    try{changes=planDns(records,domain.hostname,ownershipRecord(tenantId,domain.hostname).value,settings.accountId,selector,key.publicKey);}
+    const keyName=selector+'._domainkey.'+domain.hostname;
+    const existingKey=records.find(record=>record.name===keyName&&record.type==='TXT'&&/v=DKIM1/i.test(txtContent(record.content)));
+    const existingPublicKey=existingKey?/(?:^|;)\s*p=([A-Za-z0-9+/]+={0,2})(?:;|$)/i.exec(txtContent(existingKey.content))?.[1]:undefined;
+    const dkimRecords=existingPublicKey?{selector,publicKey:existingPublicKey}:await this.emailApi.createDkimKey(tenantId,domain.hostname,selector);
+    if(!dkimRecords.publicKey)throw new ConflictException({code:'DKIM_KEY_INVALID',message:'El registro DKIM existente no se puede reutilizar de forma segura. Revisa el DNS antes de continuar.'});
+    try{changes=planDns(records,domain.hostname,ownershipRecord(tenantId,domain.hostname).value,settings.accountId,selector,dkimRecords.publicKey);}
     catch(error:unknown){throw new ConflictException({code:error instanceof Error?error.message:'DNS_CONFLICT',message:'Hay un conflicto en SPF, DKIM, DMARC o Domain Lockdown. No se cambió ningún registro. Revisa el código del conflicto.'});}
     const spfChange=changes.find(change=>change.name===domain.hostname&&/^v=spf1/i.test(change.content));
     if(spfChange){try{await validateSpfBudget(spfChange.content,name=>this.resolveSpf(name));}catch{throw new ConflictException({code:'SPF_LOOKUP_REVIEW_REQUIRED',message:'No se pudo confirmar el límite de consultas del SPF resultante. No se cambió el DNS. Revisa los includes actuales antes de continuar.'});}}

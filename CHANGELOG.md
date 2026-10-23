@@ -1,6 +1,22 @@
 # Changelog
 
 ## [Unreleased]
+- Add a dedicated Spanish account-access experience with profile-aware registration, terms acceptance, optional one-time-code login, email verification, password recovery and credential-verified workspace selection.
+- Add optional Google Identity Services sign-in and registration with server-side signing-key/audience/issuer/email verification, safe verified-email linking, terms-gated signup, tenant-scoped identity and the same workspace picker; keep disabled until configured.
+- Add tenant-owned expiring authentication challenges, one-time code verification, password-reset session revocation, per-email and per-IP abuse limits, and a separately mounted MailChannels credential for account emails; preserve duplicate email identities across workspaces.
+- Configure optional production authentication email secrets and update the deployment initializer, backup and runbook for account recovery prerequisites.
+- Use the same auditable operator/CSV consent record for campaign audience review, test sends and final dispatch; boolean or malformed consent can no longer unlock a mailing.
+- Replace SMTP-based test delivery with MailChannels Email API over HTTPS; encrypt API credentials per tenant, configure MailChannels-managed DKIM keys and keep unsubscribe/correlation headers on individual messages.
+- Add signed MailChannels webhook verification with replay-age checks, durable idempotent event ingestion, retryable correlation, and bounce/complaint/unsubscribe suppression.
+- Add consented audience review, expiring campaign confirmation tokens, current-version preview and sender-DNS gates, durable one-recipient dispatch jobs, and provider-event campaign reconciliation through the MailChannels Email API.
+- Add timezone-aware campaign scheduling with revalidation at execution time, stable per-contact A/B subject allocation, required accepted previews for both A/B variants, MailChannels open/click tracking, tenant-scoped campaign analytics and safe cancellation before a scheduled send begins.
+- Add isolated end-to-end Email API smoke coverage for campaign confirmation, simulated dispatch, event deduplication and suppression; live public webhook validation and delivery still require operator-owned MailChannels credentials and HTTPS deployment.
+
+- Persist campaign audiences as tenant-owned list associations, validate list ownership on save, and show deduplicated consented eligible-contact counts in campaign review.
+- Keep campaign dispatch behind live MailChannels webhook validation, verified sender DNS, consent and current-version preview checks; SMTP does not produce the required MailChannels webhook events.
+
+- Replace long signed browser-view and unsubscribe path tokens with compact, opaque signed links and server-side signature verification to avoid Fastify parameter-length errors.
+- Clarify the campaign review's eligible-contact count and preserve the commercial send gate until authenticated provider events, bounce/complaint suppression, audience selection and send confirmation are implemented.
 
 - Disable critical CSS inlining in production so styles load without the inline media-switch script blocked by the console CSP.
 
@@ -70,8 +86,4 @@
 - Configure Docker Desktop hot reload, unprivileged processes, reproducible dependency installation, readiness checks and automatic local migrations.
 - Resolve audited dependency advisories through pinned compatible transitive overrides and a reproducible lockfile.
 - Add focused compiler/CSV/DNS tests and API isolation smoke checks; document incomplete production requirements and keep real delivery disabled.
-
-
-
-
 

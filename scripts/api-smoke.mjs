@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID, randomBytes, scryptSync } from 'node:crypto';
+import { randomUUID, randomBytes, scryptSync, createHmac } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 const db = new PrismaClient();
 const base = 'http://localhost:3000';
@@ -12,25 +12,37 @@ try {
  assert.equal((await call('/contacts')).status,401);
  const accounts=[];
  for (let i=0;i<2;i++) {
-  const credentials={email:randomUUID()+'@example.com',password:randomUUID()+'-Test'};
+  const credentials={firstName:'Smoke',lastName:'Account',email:randomUUID()+'@example.com',password:randomUUID()+'-Test',acceptedTerms:true};
   const registration=await call('/auth/register','POST',{...(i?{workspace:'Smoke test '+randomUUID()}:{}),...credentials});
   assert.equal(registration.status,201);tenants.push(registration.data.tenantId);accounts.push({...registration.data,cookie:registration.cookie,credentials});
  }
  const [a,b]=accounts;
+ const authConfig=await fetch(base+'/auth/config').then(response=>response.json());assert.equal(authConfig.emailCodeEnabled,false);
+ assert.equal((await call('/auth/login-code/request','POST',{email:a.credentials.email})).status,503);
+ assert.equal((await call('/auth/password-reset/request','POST',{email:a.credentials.email})).status,503);
+ assert.equal(authConfig.googleAuthEnabled,false);assert.equal((await call('/auth/google','POST',{idToken:'synthetic-disabled-google-token-value'})).status,503);
  assert.equal(a.workspaceName,'Mi organización');
- const registrationCount=await db.tenant.count();assert.equal((await call('/auth/register','POST',a.credentials)).status,409);assert.equal(await db.tenant.count(),registrationCount);
- const automaticLogin=await call('/auth/login','POST',a.credentials);assert.equal(automaticLogin.status,201);assert.equal(automaticLogin.data.tenantId,a.tenantId);
- assert.equal((await call('/auth/login','POST',{...a.credentials,password:'incorrect-password'})).status,401);
+ const registeredUser=await db.user.findFirst({where:{tenantId:a.tenantId,email:a.credentials.email}});assert.equal(registeredUser.firstName,'Smoke');assert.ok(registeredUser.termsAcceptedAt);assert.equal(a.user.firstName,'Smoke');
+ const registrationCount=await db.tenant.count();const repeatedEmailRegistration=await call('/auth/register','POST',{...a.credentials,password:randomUUID()+'-Separate'});assert.equal(repeatedEmailRegistration.status,201);tenants.push(repeatedEmailRegistration.data.tenantId);assert.equal(await db.tenant.count(),registrationCount+1);
+ const loginCredentials={email:a.credentials.email,password:a.credentials.password};
+ const automaticLogin=await call('/auth/login','POST',loginCredentials);assert.equal(automaticLogin.status,201);assert.equal(automaticLogin.data.tenantId,a.tenantId);
+ assert.equal((await call('/auth/login','POST',{...loginCredentials,password:'incorrect-password'})).status,401);
  assert.equal((await call('/auth/login','POST',{email:randomUUID()+'@example.invalid',password:'incorrect-password'})).status,401);
  const firstUser=await db.user.findFirst({where:{tenantId:a.tenantId}});
  const duplicate=await db.user.create({data:{tenantId:b.tenantId,email:a.credentials.email,passwordHash:firstUser.passwordHash,role:'viewer'}});
+ const otpTenants=[a.tenantId,b.tenantId,repeatedEmailRegistration.data.tenantId],otpCode='471928';
+ for(const tenantId of otpTenants){const tokenHash=createHmac('sha256',process.env.JWT_SECRET).update([tenantId,a.credentials.email,'login',otpCode].join(':')).digest('hex');await db.authChallenge.create({data:{tenantId,email:a.credentials.email,purpose:'login',tokenHash,expiresAt:new Date(Date.now()+600000)}});}
+ assert.equal((await call('/auth/login-code/verify','POST',{email:a.credentials.email,code:'000000'})).status,401);
+ const otpWorkspaceSelection=await call('/auth/login-code/verify','POST',{email:a.credentials.email,code:otpCode});assert.equal(otpWorkspaceSelection.status,201);assert.equal(otpWorkspaceSelection.data.requiresWorkspaceSelection,true);assert.equal(otpWorkspaceSelection.data.workspaces.length,3);assert.equal(otpWorkspaceSelection.data.accessToken,undefined);
+ const verifiedCodeSession=await call('/auth/login-code/verify','POST',{email:a.credentials.email,code:otpCode,workspaceId:a.tenantId});assert.equal(verifiedCodeSession.status,201);assert.equal(verifiedCodeSession.data.tenantId,a.tenantId);assert.equal(await db.authChallenge.count({where:{email:a.credentials.email,purpose:'login',consumedAt:null}}),0);
+ assert.equal((await call('/auth/login-code/verify','POST',{email:a.credentials.email,code:otpCode,workspaceId:b.tenantId})).status,401);
  const sessionCount=await db.refreshSession.count({where:{tenantId:{in:[a.tenantId,b.tenantId]}}});
- const selection=await call('/auth/login','POST',a.credentials);assert.equal(selection.status,201);assert.equal(selection.data.requiresWorkspaceSelection,true);assert.equal(selection.data.workspaces.length,2);assert.equal(selection.data.accessToken,undefined);assert.equal(selection.cookie,undefined);assert.equal(await db.refreshSession.count({where:{tenantId:{in:[a.tenantId,b.tenantId]}}}),sessionCount);
- const selected=await call('/auth/login','POST',{...a.credentials,workspaceId:b.tenantId});assert.equal(selected.status,201);assert.equal(selected.data.tenantId,b.tenantId);assert.equal(selected.data.userRole,'viewer');
+ const selection=await call('/auth/login','POST',loginCredentials);assert.equal(selection.status,201);assert.equal(selection.data.requiresWorkspaceSelection,true);assert.equal(selection.data.workspaces.length,2);assert.equal(selection.data.accessToken,undefined);assert.equal(selection.cookie,undefined);assert.equal(await db.refreshSession.count({where:{tenantId:{in:[a.tenantId,b.tenantId]}}}),sessionCount);
+ const selected=await call('/auth/login','POST',{...loginCredentials,workspaceId:b.tenantId});assert.equal(selected.status,201);assert.equal(selected.data.tenantId,b.tenantId);assert.equal(selected.data.userRole,'viewer');
  assert.equal((await call('/contacts','POST',{email:'viewer-selected@example.invalid',firstName:'Denied',consent:true},selected.data.accessToken)).status,403);
- assert.equal((await call('/auth/login','POST',{...a.credentials,workspaceId:randomUUID()})).status,401);
+ assert.equal((await call('/auth/login','POST',{...loginCredentials,workspaceId:randomUUID()})).status,401);
  const otherSalt=randomBytes(16).toString('hex');await db.user.update({where:{id:duplicate.id},data:{passwordHash:otherSalt+':'+scryptSync('different-password',otherSalt,64).toString('hex')}});
- const passwordScoped=await call('/auth/login','POST',a.credentials);assert.equal(passwordScoped.data.tenantId,a.tenantId);assert.equal(passwordScoped.data.workspaces,undefined);
+ const passwordScoped=await call('/auth/login','POST',loginCredentials);assert.equal(passwordScoped.data.tenantId,a.tenantId);assert.equal(passwordScoped.data.workspaces,undefined);
  await db.refreshSession.deleteMany({where:{userId:duplicate.id,tenantId:b.tenantId}});await db.user.delete({where:{id:duplicate.id}});
 
  assert.equal((await call('/contacts','POST',{email:'bad',firstName:'Test',consent:true},a.accessToken)).status,400);
@@ -69,7 +81,7 @@ try {
  assert.equal((await call('/campaigns','POST',{name:'Unsupported HTML',subject:'HTML',preheader:'',document:{blocks:[],html:'{% loop %}'}},a.accessToken)).status,400);
  const campaign=await call('/campaigns','POST',{name:'Test',subject:'Subject',preheader:'Preview',document:{blocks:[]}},a.accessToken);
  assert.equal(campaign.status,201);
- const readiness=await call('/campaign-review/'+campaign.data.id,'GET',undefined,a.accessToken);assert.equal(readiness.status,200);assert.equal(readiness.data.commercialSendingEnabled,false);assert.equal(readiness.data.previewReady,false);assert.equal(readiness.data.checks.find(check=>check.code==='subject').ready,true);assert.equal(readiness.data.checks.find(check=>check.code==='smtp').ready,false);assert.equal((await call('/campaign-review/'+campaign.data.id,'GET',undefined,b.accessToken)).status,404);
+ const readiness=await call('/campaign-review/'+campaign.data.id,'GET',undefined,a.accessToken);assert.equal(readiness.status,200);assert.equal(readiness.data.commercialSendingEnabled,false);assert.equal(readiness.data.previewReady,false);assert.equal(readiness.data.audienceSelected,false);assert.equal(readiness.data.checks.find(check=>check.code==='audience').ready,false);assert.equal(readiness.data.checks.find(check=>check.code==='subject').ready,true);assert.equal(readiness.data.checks.find(check=>check.code==='emailApi').ready,false);assert.equal(readiness.data.checks.find(check=>check.code==='providerEvents').ready,false);assert.equal(readiness.data.checks.find(check=>check.code==='sendConfirmation').ready,false);assert.equal((await call('/campaign-review/'+campaign.data.id,'GET',undefined,b.accessToken)).status,404);
 
  const styled=await call('/campaigns/'+campaign.data.id,'PATCH',{name:'Styled',subject:'Subject',preheader:'',document:{blocks:[{id:'1',type:'heading',content:'Title',style:{fontSize:36,color:'#0f172a',background:'#ffffff',padding:20,align:'center',fontFamily:'Arial'}}]}},a.accessToken);
  assert.equal(styled.status,200);
@@ -85,7 +97,7 @@ try {
  assert.equal((await call('/domains/'+domain.data.id+'/check','POST',{},b.accessToken)).status,404);
  assert.equal((await call('/domains','GET',undefined,b.accessToken)).data.length,0);
 
- assert.equal((await call('/integrations','GET',undefined,b.accessToken)).data.smtpConnected,false);
+ assert.equal((await call('/integrations','GET',undefined,b.accessToken)).data.emailApiConnected,false);
  assert.equal((await call('/test-emails','GET',undefined,b.accessToken)).data.length,0);
  assert.equal((await call('/integrations/cloudflare/'+domain.data.id,'POST',{},b.accessToken)).status,404);
  const page=await call('/contacts/page?page=2&pageSize=25','GET',undefined,a.accessToken);assert.equal(page.status,200);assert.equal(page.data.data.length,25);assert.equal(page.data.meta.total,106);assert.equal(page.data.meta.from,26);assert.equal(page.data.meta.to,50);
@@ -128,11 +140,12 @@ try {
  const bulkOne=await call('/contacts','POST',{email:'bulk-one@example.com',firstName:'Bulk one',consent:true},a.accessToken),bulkTwo=await call('/contacts','POST',{email:'bulk-two@example.com',firstName:'Bulk two',consent:true},a.accessToken),foreignContact=await call('/contacts','POST',{email:'foreign-bulk@example.com',firstName:'Foreign',consent:true},b.accessToken);
  await db.contact.update({where:{tenantId_id:{tenantId:a.tenantId,id:bulkTwo.data.id}},data:{status:'complained'}});
  const bulkIds=[bulkOne.data.id,bulkTwo.data.id],bulkList=await call('/lists','POST',{name:'Bulk list'},a.accessToken),foreignList=await call('/lists','POST',{name:'Foreign list'},b.accessToken);
+ const managedMembership=await call('/lists/'+bulkList.data.id+'/contacts','POST',{contactIds:[bulkOne.data.id]},a.accessToken);assert.equal(managedMembership.status,201,JSON.stringify(managedMembership.data));const selectedCampaign=await call('/campaigns/'+campaign.data.id,'PATCH',{name:'Audience campaign',subject:'Subject',preheader:'',document:{blocks:[]},audienceListIds:[bulkList.data.id]},a.accessToken);assert.equal(selectedCampaign.status,200,JSON.stringify(selectedCampaign.data));assert.deepEqual((await call('/campaigns/'+campaign.data.id,'GET',undefined,a.accessToken)).data.audienceListIds,[bulkList.data.id]);const selectedReview=await call('/campaign-review/'+campaign.data.id,'GET',undefined,a.accessToken);assert.deepEqual(selectedReview.data.audiences,[{id:bulkList.data.id,name:'Bulk list'}]);assert.equal(selectedReview.data.audienceSelected,true);assert.equal(selectedReview.data.eligibleContacts,1);assert.equal(selectedReview.data.commercialSendingEnabled,false);assert.equal((await call('/campaigns/'+campaign.data.id,'PATCH',{name:'Foreign audience',subject:'Subject',preheader:'',document:{blocks:[]},audienceListIds:[foreignList.data.id]},a.accessToken)).status,400);
  assert.equal((await call('/contacts/bulk','POST',{ids:[bulkOne.data.id,foreignContact.data.id],action:'archive'},a.accessToken)).status,404);
  assert.equal((await call('/contacts/'+bulkOne.data.id,'GET',undefined,a.accessToken)).data.status,'subscribed');
  assert.equal((await call('/contacts/bulk','POST',{ids:bulkIds,action:'addToList',listId:foreignList.data.id},a.accessToken)).status,404);
  for(const body of [{ids:[],action:'archive'},{ids:[bulkOne.data.id,bulkOne.data.id],action:'archive'},{ids:Array.from({length:201},()=>randomUUID()),action:'archive'},{ids:bulkIds,action:'subscribe'},{ids:bulkIds,action:'archive',tenantId:b.tenantId}])assert.equal((await call('/contacts/bulk','POST',body,a.accessToken)).status,400);
- assert.deepEqual((await call('/contacts/bulk','POST',{ids:bulkIds,action:'addToList',listId:bulkList.data.id},a.accessToken)).data,{requested:2,changed:2,unchanged:0});
+ assert.deepEqual((await call('/contacts/bulk','POST',{ids:bulkIds,action:'addToList',listId:bulkList.data.id},a.accessToken)).data,{requested:2,changed:1,unchanged:1});
  assert.equal((await call('/contacts/bulk','POST',{ids:bulkIds,action:'addToList',listId:bulkList.data.id},a.accessToken)).data.changed,0);
  assert.equal((await call('/contacts/bulk','POST',{ids:bulkIds,action:'removeFromList',listId:bulkList.data.id},a.accessToken)).data.changed,2);
  assert.deepEqual((await call('/contacts/bulk','POST',{ids:bulkIds,action:'unsubscribe'},a.accessToken)).data,{requested:2,changed:1,unchanged:1});
@@ -167,11 +180,10 @@ try {
  assert.equal((await call('/contacts','GET',undefined,nextSession.accessToken)).status,401);
  const list=await db.list.create({data:{tenantId:b.tenantId,name:'Other account'}});
  await assert.rejects(db.contactList.create({data:{tenantId:a.tenantId,contactId:created.data.id,listId:list.id}}));
- console.log('PASS: atomic bulk selection actions, saved view CRUD/isolation, contact/list/attribute/template/campaign/domain CRUD, bounded pagination/filtering, archive/restore suppression, CSV batch import, custom field isolation, pagination, suppression, authentication, rotation/replay/logout, viewer/owner permissions, DTO/style validation, tenant isolation, opt-out preservation and database ownership.');
+ console.log('PASS: atomic bulk selection actions, saved view CRUD/isolation, contact/list/attribute/template/campaign/domain CRUD, bounded pagination/filtering, archive/restore suppression, CSV batch import, custom field isolation, pagination, suppression, password/OTP authentication, single-use cross-tenant code claims, named workspace selection, duplicate-email accounts, rotation/replay/logout, viewer/owner permissions, DTO/style validation, tenant isolation, opt-out preservation and database ownership.');
 } finally {
  for (const tenantId of tenants) {
   await db.refreshSession.deleteMany({where:{tenantId}});await db.testEmail.deleteMany({where:{tenantId}});await db.integrationCredential.deleteMany({where:{tenantId}});await db.domain.deleteMany({where:{tenantId}});await db.campaign.deleteMany({where:{tenantId}});await db.contactList.deleteMany({where:{tenantId}});await db.list.deleteMany({where:{tenantId}});await db.contact.deleteMany({where:{tenantId}});await db.contactField.deleteMany({where:{tenantId}});await db.contactView.deleteMany({where:{tenantId}});await db.emailTemplate.deleteMany({where:{tenantId}});await db.user.deleteMany({where:{tenantId}});await db.tenant.delete({where:{id:tenantId}});
  }
  await db.$disconnect();
 }
-

@@ -2,7 +2,7 @@ import { Body, Controller, Get, Inject, NotFoundException, Param, Post, Delete, 
 import { IsFQDN } from 'class-validator';
 import { ownershipRecord } from './integrations/domain-ownership';
 import { SecretVault } from './integrations/secret-vault';
-import { SmtpSettings } from './integrations/mailchannels-smtp';
+import { MailchannelsEmailSettings } from './integrations/mailchannels-email-api';
 import { Resolver } from 'node:dns/promises';
 import { Database } from './database';
 import { TenantGuard, TenantRequest } from './tenant.guard';
@@ -46,8 +46,8 @@ export class DomainsController {
         return [];
       }
     };
-    const smtp=await this.vault.load<SmtpSettings>(request.tenantId,'mailchannels');
-    const selector = smtp ? 'mailcraft' : process.env['MAILCHANNELS_DKIM_SELECTOR'] ?? 'mailchannels';
+    const emailApi=await this.vault.load<MailchannelsEmailSettings>(request.tenantId,'mailchannels-email-api');
+    const selector = emailApi ? 'mailcraft' : process.env['MAILCHANNELS_DKIM_SELECTOR'] ?? 'mailchannels';
     if (!/^[a-zA-Z0-9_-]{1,63}$/.test(selector)) throw new Error('Invalid DKIM selector configuration');
     const host = domain.hostname;
     const [spf, dkim, dmarc, ownership, lockdown] = await Promise.all([txt(host), txt(selector + '._domainkey.' + host), txt('_dmarc.' + host), txt('_mailcraft.' + host), txt('_mailchannels.' + host)]);
@@ -55,11 +55,11 @@ export class DomainsController {
     try { mx = (await resolver.resolveMx(host)).map(record => record.exchange); }
     catch { errors.push('MX'); }
     const records: DnsRecords = {spf, dkim, dmarc, ownership, lockdown, mx};
-    const result = inspectRecords(records, this.instructions(request.tenantId, host).value, smtp?.accountId ?? process.env['MAILCHANNELS_ACCOUNT_ID'] ?? '');
+    const result = inspectRecords(records, this.instructions(request.tenantId, host).value, emailApi?.accountId ?? process.env['MAILCHANNELS_ACCOUNT_ID'] ?? '');
     const data = {checkedAt: new Date(), spfVerified: result.ownership && result.spf, dkimVerified: result.ownership && result.dkim, dmarcVerified: result.ownership && result.dmarc, lockdownVerified: result.ownership && result.lockdown};
     await this.db.domain.updateMany({where: {id, tenantId: request.tenantId}, data});
     return {id, result, records, errors, selector, checkedAt: data.checkedAt, sendingEnabled: false};
   }
-  @Delete(':id') async remove(@Req() request:TenantRequest,@Param('id') id:string){const domain=await this.db.domain.findFirst({where:{tenantId:request.tenantId,id}});if(!domain)throw new NotFoundException();const smtp=await this.vault.load<SmtpSettings>(request.tenantId,'mailchannels');if(smtp?.fromEmail.split('@')[1]===domain.hostname)throw new ConflictException('Este dominio está conectado al remitente SMTP. Configura otro remitente antes de quitarlo.');await this.db.domain.deleteMany({where:{tenantId:request.tenantId,id}});return {deleted:true};}
+  @Delete(':id') async remove(@Req() request:TenantRequest,@Param('id') id:string){const domain=await this.db.domain.findFirst({where:{tenantId:request.tenantId,id}});if(!domain)throw new NotFoundException();const emailApi=await this.vault.load<MailchannelsEmailSettings>(request.tenantId,'mailchannels-email-api');if(emailApi?.fromEmail.split('@')[1]===domain.hostname)throw new ConflictException('Este dominio está conectado al remitente de MailChannels Email API. Configura otro remitente antes de quitarlo.');await this.db.domain.deleteMany({where:{tenantId:request.tenantId,id}});return {deleted:true};}
 
 }
