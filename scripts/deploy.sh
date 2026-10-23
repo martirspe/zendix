@@ -54,6 +54,9 @@ done
 auth_key_path="$(setting AUTH_EMAIL_API_KEY_PATH)"
 [[ "$auth_key_path" == ./deploy/secrets/auth_email_api_key && -f ./deploy/secrets/auth_email_api_key ]] || { echo 'Set up the optional authentication MailChannels key file at ./deploy/secrets/auth_email_api_key; it may be empty until authentication email is configured.' >&2; exit 1; }
 export AUTH_EMAIL_API_KEY_PATH="$auth_key_path" AUTH_EMAIL_FROM_EMAIL="$(setting AUTH_EMAIL_FROM_EMAIL)" AUTH_EMAIL_FROM_NAME="$(setting AUTH_EMAIL_FROM_NAME)" AUTH_REQUIRE_EMAIL_VERIFICATION="$(setting AUTH_REQUIRE_EMAIL_VERIFICATION)" GOOGLE_OAUTH_ENABLED="$(setting GOOGLE_OAUTH_ENABLED)" GOOGLE_CLIENT_ID="$(setting GOOGLE_CLIENT_ID)"
+# The host-proxy override bind-mounts this file into the unprivileged Nginx
+# container; ensure its mode permits the container worker to read it.
+chmod 644 deploy/nginx.proxy.conf
 compose=(docker compose --env-file .env.production -p mailcraft-production -f compose.production.yaml -f compose.host-proxy.yaml)
 "${compose[@]}" config --quiet
 if [[ "$mode" == check ]]; then echo 'Configuration and Docker preflight passed. No deployment or host changes performed.'; exit 0; fi
