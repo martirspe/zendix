@@ -79,7 +79,7 @@ tar -czf "$backup_directory/secrets.tar.gz" deploy/secrets/jwt_secret deploy/sec
 [[ -s "$backup_directory/database.dump" && -s "$backup_directory/dkim.tar.gz" ]] || exit 1
 echo "Private pre-migration backup: $backup_directory. Move an encrypted copy off-host."
 "${compose[@]}" run --rm -T --no-deps migrate
-"${compose[@]}" up -d --no-build --wait --wait-timeout 180 api web
+"${compose[@]}" up -d --force-recreate --no-build --wait --wait-timeout 180 api web
 if [[ "$bootstrap_owner" == true ]]; then
  read -r -p 'Organization name: ' owner_workspace </dev/tty
  read -r -p 'Owner email: ' owner_email </dev/tty
