@@ -23,13 +23,13 @@ Initial public testing uses this same production deployment and origin, with pro
 
 ## Email sender and existing connections
 
-The application domain does not replace the sender domain. The existing sender remains noreply@reclamofacil.com and the explicitly authorized preview recipient remains rosonoem@gmail.com. MailChannels sender DNS is configured separately through Dominios. zendix.site needs sender SPF/DKIM/DMARC only if it will also send email.
+The application domain does not replace the sender domain. The existing sender remains noreply@reclamofacil.com and the explicitly authorized preview recipient remains rosonoem@gmail.com. Amazon SES sender DNS is configured separately through Dominios. zendix.site needs sender SPF/DKIM/DMARC only if it will also send email.
 
-Existing encrypted SMTP configurations keep their stored publicBaseUrl. After the public deployment works, reconnect MailChannels from Conexiones with https://app.zendix.site so new signed links use the correct host. Existing message snapshots remain immutable; do not rewrite links in already prepared previews.
+After the public deployment works, configure Amazon SES from Conexiones with https://app.zendix.site so new signed links use the correct host. Existing message snapshots remain immutable; do not rewrite links in already prepared previews.
 
 ## Verification before a public preview
 
-Verify /api/health, authentication/refresh/logout, a prepared /email-view link and the unsubscribe confirmation on the chosen HTTPS origin. Confirm the production cookie is Secure and HTTP does not serve authenticated content. Test opt-out with a disposable consented contact. Real SMTP delivery and public DNS/TLS still require the actual VPS deployment and credentials. Bulk commercial sending remains gated by the project's delivery requirements.
+Verify /api/health, authentication/refresh/logout, a prepared /email-view link and the unsubscribe confirmation on the chosen HTTPS origin. Confirm the production cookie is Secure and HTTP does not serve authenticated content. Test opt-out with a disposable consented contact. Real SES delivery and public DNS/TLS still require the actual VPS deployment and IAM configuration. Bulk commercial sending remains gated by the project's delivery requirements.
 
 ## Repository verification
 

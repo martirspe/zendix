@@ -10,9 +10,9 @@ function fixture(){
  for(const folder of ['scripts','bin','deploy','deploy/secrets'])mkdirSync(join(root,folder),{recursive:true});
  writeFileSync(join(root,'deploy/nginx.proxy.conf'),'events {}\n');
  for(const script of ['deploy.sh','init-production.sh','bootstrap-host.sh'])copyFileSync('scripts/'+script,join(root,'scripts',script));
- writeFileSync(join(root,'.env.production'),'APP_HOST=app.zendix.site\nACME_EMAIL=operator@example.invalid\nWEB_PORT=8092\n'+['jwt_secret','vault_key','database_password','redis_password'].map(name=>name.toUpperCase()+'_PATH=./deploy/secrets/'+name).join('\n')+'\nAUTH_EMAIL_API_KEY_PATH=./deploy/secrets/auth_email_api_key\n');
+ writeFileSync(join(root,'.env.production'),'APP_HOST=app.zendix.site\nACME_EMAIL=operator@example.invalid\nWEB_PORT=8092\n'+['jwt_secret','vault_key','database_password','redis_password'].map(name=>name.toUpperCase()+'_PATH=./deploy/secrets/'+name).join('\n')+'\nAWS_CREDENTIALS_PATH=./deploy/secrets/aws_credentials\n');
  for(const name of ['jwt_secret','vault_key','database_password','redis_password'])writeFileSync(join(root,'deploy/secrets',name),'synthetic-test-value');
- writeFileSync(join(root,'deploy/secrets/auth_email_api_key'),'');
+ writeFileSync(join(root,'deploy/secrets/aws_credentials'),'');
  writeFileSync(join(root,'bin/docker'),'#!/bin/bash\nprintf "%s\\n" "$*" >> "$MOCK_LOG"\ncase "$*" in\n *" build "*) [[ "$MOCK_FAIL" != build ]] || exit 9 ;;\n *pg_dump*) [[ "$MOCK_FAIL" != backup ]] || exit 8; echo synthetic-database-dump ;;\n *"--entrypoint tar"*) echo synthetic-dkim-archive ;;\nesac\nexit 0\n',{mode:0o755});
  writeFileSync(join(root,'bin/curl'),'#!/bin/bash\nexit 0\n',{mode:0o755});
  const log=join(root,'commands.log');

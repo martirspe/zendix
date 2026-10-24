@@ -9,6 +9,6 @@ test('encrypted credentials are bound to tenant and provider and detect tamperin
   assert.ok(!encrypted.includes(payload.password));
   assert.deepEqual(unseal(encrypted, key, 'tenant-a:cloudflare'), payload);
   assert.throws(() => unseal(encrypted, key, 'tenant-b:cloudflare'));
-  assert.throws(() => unseal(encrypted, key, 'tenant-a:mailchannels'));
+  assert.throws(() => unseal(encrypted, key, 'tenant-a:ses'));
   assert.throws(() => unseal(encrypted.slice(0, -3) + 'xxx', key, 'tenant-a:cloudflare'));
 });

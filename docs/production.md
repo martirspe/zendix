@@ -53,13 +53,16 @@ not issue a public certificate, modify Cloudflare or send email.
 
 ## Production invariants
 
-- Keep the four generated secret files and tenant DKIM key volume together with
-  the database backup.
+- Keep the generated secret files and scoped AWS credentials with the database backup.
 - Never delete volumes or reset a shared database to roll back.
 - Backups are mandatory before migrations; the deployment has no bypass flag.
-- Configure MailChannels and Cloudflare from the authenticated console.
-- Commercial bulk campaigns remain disabled until provider event verification
-  and the complete audience dispatch workflow are implemented and tested.
+- Configure Amazon SES and Cloudflare from the authenticated console.
+- Commercial campaigns remain gated on verified SES events, sender DNS,
+  consent, an accepted current preview and explicit confirmation.
 
 See [DEPLOY.md](../DEPLOY.md) for configuration, backups, recovery and the
 post-deployment verification checklist.
+
+Optional AWS media and email infrastructure is managed separately from the
+Hetzner VPS using [the SES/S3/CloudFront Terraform stack](../infra/terraform/ses/README.md).
+It does not provision Route 53 or replace Cloudflare DNS.

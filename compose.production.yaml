@@ -33,21 +33,24 @@ services:
       ALLOW_REGISTRATION: "false"
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       MAILCRAFT_MASTER_KEY_FILE: /run/secrets/vault_key
-      MAILCRAFT_KEYS_PATH: /var/lib/mailcraft/keys
       DATABASE_HOST: postgres
       DATABASE_USER: mailcraft
       DATABASE_NAME: mailcraft
       DATABASE_PASSWORD_FILE: /run/secrets/database_password
       REDIS_HOST: redis
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
-      AUTH_EMAIL_API_KEY_FILE: /run/secrets/auth_email_api_key
+      AWS_SHARED_CREDENTIALS_FILE: /run/secrets/aws_credentials
+      SES_EVENTS_TOPIC_ARN: ${SES_EVENTS_TOPIC_ARN:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AUTH_EMAIL_SES_REGION: ${AUTH_EMAIL_SES_REGION:-}
+      AUTH_EMAIL_SES_CONFIGURATION_SET: ${AUTH_EMAIL_SES_CONFIGURATION_SET:-}
+      AUTH_EMAIL_AWS_PROFILE: ${AUTH_EMAIL_AWS_PROFILE:-}
       AUTH_EMAIL_FROM_EMAIL: ${AUTH_EMAIL_FROM_EMAIL:-}
       AUTH_EMAIL_FROM_NAME: ${AUTH_EMAIL_FROM_NAME:-MailCraft}
       AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
       GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-    secrets: [jwt_secret, vault_key, database_password, redis_password, auth_email_api_key]
-    volumes: ["integration_keys:/var/lib/mailcraft/keys"]
+    secrets: [jwt_secret, vault_key, database_password, redis_password, aws_credentials]
     read_only: true
     tmpfs: [/tmp]
     depends_on:
@@ -107,10 +110,9 @@ secrets:
   vault_key: {file: "${VAULT_KEY_PATH:?Set VAULT_KEY_PATH}"}
   database_password: {file: "${DATABASE_PASSWORD_PATH:?Set DATABASE_PASSWORD_PATH}"}
   redis_password: {file: "${REDIS_PASSWORD_PATH:?Set REDIS_PASSWORD_PATH}"}
-  auth_email_api_key: {file: "${AUTH_EMAIL_API_KEY_PATH:?Set AUTH_EMAIL_API_KEY_PATH}"}
+  aws_credentials: {file: "${AWS_CREDENTIALS_PATH:?Set AWS_CREDENTIALS_PATH}"}
 volumes:
   postgres_data:
   redis_data:
-  integration_keys:
   caddy_data:
   caddy_config:

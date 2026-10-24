@@ -22,18 +22,18 @@ import {GoogleIdentityService} from './google-identity.service';
 import { CampaignsController } from './campaigns.controller';
 import { DomainsController } from './domains.controller';
 import { SecretVault } from './integrations/secret-vault';
-import { MailchannelsEmailApi } from './integrations/mailchannels-email-api';
+import { SesEmail } from './integrations/ses-email';
 import { CloudflareService } from './integrations/cloudflare.service';
 import { IntegrationsController } from './integrations/integrations.controller';
 import { TestEmailController } from './integrations/test-email.controller';
 import { TestEmailService } from './integrations/test-email.service';
 import { UnsubscribeController } from './integrations/unsubscribe.controller';
-import { MailchannelsWebhookController } from './integrations/mailchannels-webhook.controller';
+import { SesWebhookController } from './integrations/ses-webhook.controller';
 import { ProviderWebhookService } from './integrations/provider-webhook.service';
 import { CampaignSendService } from './campaign-send.service';
 import { CampaignSendController } from './campaign-send.controller';
 import { DeliveryQueue, HealthController } from './health.controller';
-@Module({imports:[JwtModule.registerAsync({useFactory:()=>({secret:jwtSecret()})})],controllers:[CampaignReviewController,CampaignAnalyticsController,CampaignSendController,ContactBulkController,ContactViewsController,ListsController,EmailViewController,TemplatesController,HealthController,ContactsController,AuthController,CampaignsController,DomainsController,IntegrationsController,TestEmailController,UnsubscribeController,MailchannelsWebhookController],providers:[Database,TenantGuard,OwnerGuard,SessionsService,RateLimiter,DeliveryQueue,SecretVault,AuthEmailService,GoogleIdentityService,MailchannelsEmailApi,CloudflareService,TestEmailService,ProviderWebhookService,CampaignSendService,DomainsController]})
+@Module({imports:[JwtModule.registerAsync({useFactory:()=>({secret:jwtSecret()})})],controllers:[CampaignReviewController,CampaignAnalyticsController,CampaignSendController,ContactBulkController,ContactViewsController,ListsController,EmailViewController,TemplatesController,HealthController,ContactsController,AuthController,CampaignsController,DomainsController,IntegrationsController,TestEmailController,UnsubscribeController,SesWebhookController],providers:[Database,TenantGuard,OwnerGuard,SessionsService,RateLimiter,DeliveryQueue,SecretVault,AuthEmailService,GoogleIdentityService,SesEmail,CloudflareService,TestEmailService,ProviderWebhookService,CampaignSendService,DomainsController]})
 class AppModule {}
 async function bootstrap(){
  configureRuntime();

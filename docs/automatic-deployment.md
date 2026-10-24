@@ -69,16 +69,16 @@ This override disables the Caddy gateway by default and binds only the static/pr
 
 ## Backups and recovery
 
-Each deployment saves a PostgreSQL custom-format dump, private environment file, secret archive and tenant DKIM archive under a new private backups/pre-deploy-* directory before migrations. Even a first deployment takes an empty database backup. A failed build or backup prevents migrations. These local copies contain secrets: create encrypted off-host backups and configure retention/monitoring. Do not share their contents in chat.
+Each deployment saves a PostgreSQL custom-format dump, private environment file and secret archive under a new private backups/pre-deploy-* directory before migrations. Even a first deployment takes an empty database backup. A failed build or backup prevents migrations. These local copies contain secrets: create encrypted off-host backups and configure retention/monitoring. Do not share their contents in chat.
 
-Restore PostgreSQL only into an isolated empty database first. Recover the matching vault secret, provider credentials and DKIM keys together. Do not change database/Redis passwords for existing volumes by rerunning initialization. The manual production runbook describes restore constraints. The automation's local orchestration tests simulate commands; they do not validate public TLS, OS package installation, firewall rules or a live VPS restore.
+Restore PostgreSQL only into an isolated empty database first. Recover the matching vault secret and AWS credentials with it. Do not change database/Redis passwords for existing volumes by rerunning initialization. The manual production runbook describes restore constraints. The automation's local orchestration tests simulate commands; they do not validate public TLS, OS package installation, firewall rules or a live VPS restore.
 
 ## Before the first real email
 
-Log in, connect MailChannels in Conexiones and configure the sender through Dominios. The sender remains noreply@reclamofacil.com unless intentionally changed. Use https://app.zendix.site as the stored public link origin. Add the authorized preview recipient with consent, save/import the design, click Guardar y revisar and resolve the pending checks before requesting an individual preview. Confirm received Authentication-Results and functional opt-out/browser links.
+Log in, connect Amazon SES in Conexiones and configure the sender through Dominios. The sender remains noreply@reclamofacil.com unless intentionally changed. Use https://app.zendix.site as the stored public link origin. Add the authorized preview recipient with consent, save/import the design, click Guardar y revisar and resolve the pending checks before requesting an individual preview. Confirm received Authentication-Results and functional opt-out/browser links.
 
-Commercial campaigns are still blocked by incomplete authenticated provider-event handling and audience/dispatch workflows. The project is prepared for controlled operator testing, not an unrestricted commercial campaign launch. Do not interpret an accepted SMTP preview as inbox delivery.
+Commercial campaigns require a verified SES identity, confirmed signed SNS subscription, sender DNS, consented audience, accepted current preview and explicit confirmation. Do not interpret SES acceptance as inbox delivery.
 
 ## Local verification evidence
 
-Angular/Nest builds, 23 unit tests, four isolated deployment orchestration tests and expanded API smoke checks passed. Authentication and save/review were exercised in the browser with disposable tenants, followed by cleanup. Production images were built and booted privately in Docker; the container Nginx configuration and /api/health proxy passed. Production smoke verified Origin rejection, Secure/HttpOnly/SameSite cookies and logout revocation. The private production stack was stopped afterward, while the development stack remains available. Host OS packages, public DNS/Certbot issuance, off-host recovery and real SMTP delivery were not executed.
+The deployment orchestration tests cover preflight and backup ordering. Current SES verification includes strict builds, unit tests and an isolated database smoke with simulated transport; a public AWS delivery and SNS callback still require operator configuration.

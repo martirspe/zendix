@@ -2,7 +2,7 @@ import {BadRequestException,Controller,Get,Inject,NotFoundException,Param,Query,
 import {Database} from './database';
 import {TenantGuard,TenantRequest} from './tenant.guard';
 import {SecretVault} from './integrations/secret-vault';
-import type {MailchannelsEmailSettings} from './integrations/mailchannels-email-api';
+import type {SesSettings} from './integrations/ses-email';
 import {createHash} from 'node:crypto';
 import {campaignSnapshot,signCampaignConfirmation} from './campaign-send-token';
 import {hasRecordedConsent} from './consent';
@@ -14,15 +14,15 @@ export class CampaignReviewController {
   const tenantId=request.tenantId;
   const campaign=await this.db.campaign.findUnique({where:{tenantId_id:{tenantId,id}}});
   if(!campaign)throw new NotFoundException();
-  const emailApi=await this.vault.load<MailchannelsEmailSettings>(tenantId,'mailchannels-email-api');
+  const emailApi=await this.vault.load<SesSettings>(tenantId,'ses');
   const host=emailApi?.fromEmail.split('@')[1];
   const [domain,previewContact,acceptedPreviews,audiences,providerAccount,failedProviderEvent]=await Promise.all([
    host?this.db.domain.findUnique({where:{tenantId_hostname:{tenantId,hostname:host}}}):null,
    emailApi?this.db.contact.findUnique({where:{tenantId_email:{tenantId,email:emailApi.testRecipient}}}):null,
    this.db.testEmail.findMany({where:{tenantId,campaignId:id,status:'accepted'},orderBy:{createdAt:'desc'},take:100,select:{fingerprint:true,recipient:true,subject:true}}),
    this.db.campaignAudience.findMany({where:{tenantId,campaignId:id},select:{listId:true,list:{select:{name:true}}}}),
-   this.db.emailProviderAccount.findUnique({where:{tenantId_provider:{tenantId,provider:'mailchannels'}},select:{webhookVerifiedAt:true}}),
-   this.db.providerWebhookEvent.findFirst({where:{tenantId,provider:'mailchannels',status:'failed'},select:{id:true}})
+   this.db.emailProviderAccount.findUnique({where:{tenantId_provider:{tenantId,provider:'ses'}},select:{webhookVerifiedAt:true}}),
+   this.db.providerWebhookEvent.findFirst({where:{tenantId,provider:'ses',status:'failed'},select:{id:true}})
   ]);
   const listIds=audiences.map(item=>item.listId);
   const audienceContacts=listIds.length?await this.db.contact.findMany({where:{tenantId,archivedAt:null,status:'subscribed',memberships:{some:{tenantId,listId:{in:listIds}}}},select:{id:true,attributes:true}}):[];
@@ -36,10 +36,10 @@ export class CampaignReviewController {
   const checks=[
    {code:'subject',label:'Asunto de la campaña',ready:Boolean(campaign.subject.trim()&&!/[\r\n]/.test(campaign.subject)),action:'Editor visual'},
    {code:'design',label:'Diseño guardado',ready:Boolean(document.html?.trim()||document.blocks?.length),action:'Editor visual'},
-   {code:'emailApi',label:'MailChannels Email API conectada',ready:Boolean(emailApi),action:'Conexiones'},
-   {code:'sender',label:'DNS del remitente comprobado',ready:Boolean(domain?.checkedAt&&domain.spfVerified&&domain.dkimVerified&&domain.dmarcVerified&&domain.lockdownVerified),action:'Dominios'},
+   {code:'emailApi',label:'Amazon SES conectada',ready:Boolean(emailApi),action:'Conexiones'},
+   {code:'sender',label:'DNS del remitente comprobado',ready:Boolean(domain?.checkedAt&&domain.spfVerified&&domain.dkimVerified&&domain.dmarcVerified&&domain.sesVerified),action:'Dominios'},
    {code:'audience',label:'Audiencia seleccionada con consentimiento',ready:listIds.length>0&&eligibleContacts>0,action:'Editor visual'},
-   {code:'providerEvents',label:'Webhook de MailChannels autenticado y validado',ready:Boolean(providerAccount?.webhookVerifiedAt&&!failedProviderEvent),action:'Conexiones'},
+   {code:'providerEvents',label:'Webhook de Amazon SES autenticado y validado',ready:Boolean(providerAccount?.webhookVerifiedAt&&!failedProviderEvent),action:'Conexiones'},
    {code:'sendConfirmation',label:'Confirmación de envío comercial',ready:false,action:'Editor visual'},
    {code:'recipient',label:'Destinatario de prueba activo y suscrito',ready:Boolean(previewContact?.status==='subscribed'&&!previewContact.archivedAt&&previewConsented),action:'Contactos'},
    {code:'preview',label:campaign.subjectVariant?'Pruebas aceptadas para los asuntos A y B actuales':'Prueba aceptada para la versión actual',ready:previewsReady,action:'Editor visual'}
@@ -50,7 +50,7 @@ export class CampaignReviewController {
   const canConfirm=campaign.status==='draft'&&prerequisites.every(check=>check.ready);
   const confirmation=checks.find(check=>check.code==='sendConfirmation');if(confirmation)confirmation.ready=canConfirm;
   const confirmationToken=canConfirm?signCampaignConfirmation(campaignSnapshot(tenantId,id,campaign.subject,campaign.preheader,campaign.document,listIds,eligibleContactIds,scheduledAt,{subjectVariant:campaign.subjectVariant,variantPercent:campaign.variantPercent}),tenantId,id,await this.vault.masterKey()):null;
-  const blockingReasons=checks.filter(check=>!check.ready).map(check=>check.code==='providerEvents'?'Conecta MailChannels, valida el webhook firmado y resuelve los eventos fallidos antes de enviar.':check.code==='preview'?'Envía una prueba de la versión actual y comprueba el diseño antes de confirmar.':check.code==='sendConfirmation'?'Esta campaña no está disponible para envío. Revisa los requisitos pendientes.':'Completa: '+check.label+'.');
+  const blockingReasons=checks.filter(check=>!check.ready).map(check=>check.code==='providerEvents'?'Conecta Amazon SES, valida el webhook firmado y resuelve los eventos fallidos antes de enviar.':check.code==='preview'?'Envía una prueba de la versión actual y comprueba el diseño antes de confirmar.':check.code==='sendConfirmation'?'Esta campaña no está disponible para envío. Revisa los requisitos pendientes.':'Completa: '+check.label+'.');
   return {campaignId:id,checks,eligibleContacts,audiences:audiences.map(item=>({id:item.listId,name:item.list.name})),audienceSelected:listIds.length>0,subject:campaign.subject,subjectVariant:campaign.subjectVariant,variantPercent:campaign.variantPercent,fromEmail:emailApi?.fromEmail??'',testRecipient:emailApi?.testRecipient??'',publicBaseUrl:emailApi?.publicBaseUrl??'',previewReady:checks.filter(check=>['subject','design','emailApi','sender','recipient'].includes(check.code)).every(check=>check.ready),commercialSendingEnabled:canConfirm,confirmationToken,scheduledAt:scheduledAt??null,timeZone,blockingReasons,dnsNote:'El estado DNS se vuelve a comprobar al confirmar y al procesar la cola.',previewNote:campaign.subjectVariant?'Antes de confirmar, envía una prueba aceptada de cada asunto A y B con el diseño actual.':'La prueba debe corresponder exactamente a la versión actual del asunto y diseño.',audienceNote:listIds.length?'Audiencia calculada como contactos activos, suscritos y con consentimiento en las listas elegidas. Los contactos repetidos se cuentan una sola vez.':'Selecciona al menos una lista para calcular la audiencia. Los contactos se deduplican entre listas.'};
  }
 }

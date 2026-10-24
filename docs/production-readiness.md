@@ -20,16 +20,18 @@ The production artifacts build and have been exercised privately in Docker. A pu
 
 ## Remaining release gates
 
+Terraform automation for SES and Cloudflare DNS is available in `infra/terraform/ses`. It provisions the account resources, but its apply is not proof of production access, DNS propagation, webhook receipt, or live deliverability.
+
 1. Deploy app.zendix.site on the chosen VPS and validate public HTTPS, off-host backups and alert delivery there.
-2. Enter MailChannels Email API and Cloudflare credentials through the authenticated console. Confirm authorized DNS changes and receive the requested preview with aligned DKIM/SPF/DMARC. No real credentials were read from files or printed by the agent.
-3. Deploy the receiver at a public HTTPS endpoint, connect a real MailChannels account, and complete its signed webhook challenge. The code verifies the provider signature over raw request bytes, rejects stale/future events, durably stores batches before acknowledgment, deduplicates/retries event processing, correlates request IDs, and suppresses hard bounces, complaints and provider unsubscribes. No production endpoint or provider credentials were available in this verification.
-4. Enter real credentials through the authenticated console, complete MailChannels validation and confirm sender DNS/public HTTPS. Campaign confirmation revalidates the provider webhook and checks the current audience, consent, accepted preview and DNS. No external campaign is sent by local checks. MailChannels accounts currently have one webhook URL; coordinate ownership before connecting an account shared by another system. The integration uses API-managed DKIM keys.
-5. Campaign scheduling with timezone retention and execution-time prerequisite checks, stable A/B subject assignment, MailChannels open/click tracking, and event-backed analytics (delivery, opens, clicks by link, bounces, complaints, unsubscribes and recent events) are implemented and covered by isolated Docker smoke checks. A/B reports compare the two subjects; automatic winner selection and an automatic second send are intentionally not implemented. Link rewriting to a tenant-owned custom tracking hostname and comprehensive cross-client rendering remain. Provider tracking depends on MailChannels account/plan support and public tracking infrastructure; local smoke uses simulated provider events.
-6. Configure `AUTH_EMAIL_API_KEY_PATH` and a verified `AUTH_EMAIL_FROM_EMAIL` before relying on account email verification, one-time login or password recovery. Verify receipt through the deployed MailChannels account. Public registration remains disabled by default; enable it only after the email flow and account operations are verified.
+2. Configure SES identity, Easy DKIM, custom MAIL FROM, account suppression and a configuration set with an SNS destination as described in [SES setup](ses-setup.md). Enter the region and sender in the authenticated console; AWS credentials remain on the server. Verify DNS and receipt of the authorized preview.
+3. Deploy `/webhooks/ses` over public HTTPS and confirm the SNS subscription. The endpoint verifies SNS signature version 2, certificate URL, timestamp and exact topic before accepting an event; PostgreSQL deduplicates and queues it before acknowledgment. Verify bounce and complaint suppression with a controlled live test.
+4. Campaign confirmation revalidates the SNS subscription and checks the current audience, consent, accepted preview and DNS. Local tests do not send external campaigns. The SES identity and SNS topic must be configured by an operator before live mail.
+5. Campaign scheduling, A/B subject allocation and event-backed analytics are implemented and covered by isolated Docker smoke checks. Verify SES open/click tracking and downstream inbox rendering publicly before relying on these reports. Automatic winner selection and a second send remain outstanding.
+6. Configure a separate `AUTH_EMAIL_AWS_PROFILE`, `AUTH_EMAIL_SES_REGION`, `AUTH_EMAIL_SES_CONFIGURATION_SET` and verified `AUTH_EMAIL_FROM_EMAIL` before relying on account email verification or recovery. Public registration remains disabled by default.
 
 ## Operator test case
 
-The requested case is an individual preview from `noreply@reclamofacil.com` to `rosonoem@gmail.com`, with Cloudflare managing the sender domain. Those values are local development defaults only; they are not embedded in the public production JavaScript bundle. The API key and Account ID are separate fields. A zone-scoped Cloudflare API token is needed to install records from the console.
+The requested case is an individual preview from `noreply@reclamofacil.com` to `rosonoem@gmail.com`, with Cloudflare managing the sender domain. Those values are local development defaults only; they are not embedded in the public production JavaScript bundle. A zone-scoped Cloudflare API token is needed to install DNS records from the console.
 
 
 

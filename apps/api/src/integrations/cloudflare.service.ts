@@ -1,69 +1,51 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { Database } from '../database';
 import { SecretVault } from './secret-vault';
-import { MailchannelsEmailApi } from './mailchannels-email-api';
+import { SesEmail } from './ses-email';
 import { ownershipRecord } from './domain-ownership';
-import { DnsRecord, planDns, txtContent } from './cloudflare-plan';
-import {validateSpfBudget} from './spf-budget';
-import {Resolver} from 'node:dns/promises';
 
+interface DnsRecord {id:string;name:string;type:string;content:string;priority?:number;}
 interface Zone {id:string;name:string;status:string;}
-interface CloudflareSettings {token:string;zoneId:string;zoneName:string;}
 interface CloudflareResponse<T> {success:boolean;result:T;result_info?:{total_pages:number};}
+interface CloudflareSettings {token:string;zoneId:string;zoneName:string;}
 
 @Injectable()
 export class CloudflareService {
-  constructor(@Inject(Database) private readonly db: Database, @Inject(SecretVault) private readonly vault: SecretVault, @Inject(MailchannelsEmailApi) private readonly emailApi: MailchannelsEmailApi) {}
-  protected async resolveSpf(hostname:string):Promise<string[]>{const resolver=new Resolver({timeout:3000,tries:1});return (await resolver.resolveTxt(hostname)).map(parts=>parts.join(''));}
-
-  private async request<T>(token:string,path:string,method='GET',body?:unknown):Promise<CloudflareResponse<T>> {
-    let response: Response;
-    try { response=await fetch('https://api.cloudflare.com/client/v4'+path,{method,headers:{authorization:'Bearer '+token,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000),redirect:'error'}); }
-    catch { throw new BadRequestException({code:'CLOUDFLARE_UNREACHABLE',message:'No se pudo conectar con Cloudflare. Revisa la conexión y vuelve a intentarlo.'}); }
-    if(!response.ok)throw new BadRequestException({code:'CLOUDFLARE_REQUEST_FAILED',message:'Cloudflare rechazó la operación. Revisa los permisos Zone:Read y DNS:Edit para esta zona.'});
-    const data=await response.json() as CloudflareResponse<T>;
-    if(!data.success)throw new BadRequestException({code:'CLOUDFLARE_REQUEST_FAILED',message:'Cloudflare no pudo completar la operación.'});
-    return data;
+ constructor(@Inject(Database) private readonly db:Database,@Inject(SecretVault) private readonly vault:SecretVault,@Inject(SesEmail) private readonly ses:SesEmail){}
+ private async request<T>(token:string,path:string,method='GET',body?:unknown):Promise<CloudflareResponse<T>>{
+  let response:Response;
+  try{response=await fetch('https://api.cloudflare.com/client/v4'+path,{method,headers:{authorization:'Bearer '+token,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000),redirect:'error'});}catch{throw new BadRequestException({code:'CLOUDFLARE_UNREACHABLE',message:'No se pudo conectar con Cloudflare.'});}
+  if(!response.ok)throw new BadRequestException({code:'CLOUDFLARE_REQUEST_FAILED',message:'Cloudflare rechazó la operación. Comprueba Zone:Read y DNS:Edit.'});
+  const data=await response.json() as CloudflareResponse<T>;if(!data.success)throw new BadRequestException({code:'CLOUDFLARE_REQUEST_FAILED',message:'Cloudflare no pudo completar la operación.'});return data;
+ }
+ async configure(tenantId:string,domainId:string,newToken?:string){
+  const domain=await this.db.domain.findFirst({where:{tenantId,id:domainId}});if(!domain)throw new NotFoundException();
+  const settings=await this.ses.settings(tenantId);
+  if(settings.fromEmail.split('@')[1]!==domain.hostname)throw new BadRequestException({code:'SENDER_DOMAIN_MISMATCH',message:'El dominio debe coincidir con el remitente de Amazon SES.'});
+  const stored=await this.vault.load<CloudflareSettings>(tenantId,'cloudflare'),token=newToken??stored?.token;
+  if(!token)throw new BadRequestException({code:'CLOUDFLARE_NOT_CONNECTED',message:'Introduce un token de Cloudflare limitado a esta zona.'});
+  const zones=(await this.request<Zone[]>(token,'/zones?name='+encodeURIComponent(domain.hostname)+'&status=active')).result;
+  const zone=zones.find(item=>item.name===domain.hostname&&item.status==='active');if(!zone)throw new BadRequestException({code:'CLOUDFLARE_ZONE_NOT_FOUND',message:'No se encontró una zona activa para este dominio.'});
+  const identity=await this.ses.identity(tenantId,domain.hostname);
+  const tokens=identity.DkimAttributes?.Tokens??[],mailFrom=identity.MailFromAttributes?.MailFromDomain;
+  if(tokens.length!==3||!mailFrom||!mailFrom.endsWith('.'+domain.hostname))throw new BadRequestException({code:'SES_IDENTITY_INCOMPLETE',message:'Configura Easy DKIM y un subdominio MAIL FROM en la identidad de SES antes de continuar.'});
+  const desired=[{type:'TXT',name:ownershipRecord(tenantId,domain.hostname).name,content:ownershipRecord(tenantId,domain.hostname).value},
+   ...tokens.map(value=>({type:'CNAME',name:value+'._domainkey.'+domain.hostname,content:value+'.dkim.amazonses.com'})),
+   {type:'TXT',name:mailFrom,content:'v=spf1 include:amazonses.com ~all'},
+   {type:'MX',name:mailFrom,content:'feedback-smtp.'+settings.region+'.amazonses.com',priority:10},
+   {type:'TXT',name:'_dmarc.'+domain.hostname,content:'v=DMARC1; p=none;'}];
+  const records:DnsRecord[]=[];
+  for(const name of new Set(desired.map(item=>item.name))){const page=await this.request<DnsRecord[]>(token,'/zones/'+zone.id+'/dns_records?name='+encodeURIComponent(name)+'&per_page=100');if((page.result_info?.total_pages??1)>1)throw new ConflictException({code:'DNS_RECORD_LIMIT',message:'Hay demasiados registros DNS para revisar de forma segura.'});records.push(...page.result);}
+  const changes:typeof desired=[];
+  for(const item of desired){const existing=records.filter(record=>record.name.toLowerCase()===item.name.toLowerCase());
+   if(existing.some(record=>record.type===item.type&&record.content.replace(/\.$/,'').replace(/^"|"$/g,'')===item.content))continue;
+   if(item.type==='TXT'&&item.content.startsWith('v=spf1')&&existing.some(record=>record.type==='TXT'&&/^"?v=spf1/i.test(record.content)))throw new ConflictException({code:'SPF_CONFLICT',message:'El subdominio MAIL FROM ya tiene una política SPF distinta. Revísala antes de continuar.'});
+   if(existing.some(record=>record.type==='CNAME'||item.type==='CNAME'||(record.type===item.type&&item.type!=='TXT')))throw new ConflictException({code:'DNS_CONFLICT',message:'Hay un registro DNS incompatible. Revisa la zona antes de continuar.'});
+   if(item.name.startsWith('_dmarc.')&&existing.some(record=>record.type==='TXT'&&record.content.includes('v=DMARC1')))continue;
+   changes.push(item);
   }
-
-  async configure(tenantId:string,domainId:string,newToken?:string) {
-    const domain=await this.db.domain.findFirst({where:{tenantId,id:domainId}});
-    if(!domain)throw new NotFoundException();
-    const settings=await this.emailApi.settings(tenantId);
-    if(settings.fromEmail.split('@')[1]!==domain.hostname)throw new BadRequestException({code:'SENDER_DOMAIN_MISMATCH',message:'El dominio debe coincidir con el remitente configurado en MailChannels.'});
-    const stored=await this.vault.load<CloudflareSettings>(tenantId,'cloudflare');
-    const token=newToken??stored?.token;
-    if(!token)throw new BadRequestException({code:'CLOUDFLARE_NOT_CONNECTED',message:'Introduce un token de Cloudflare limitado a este dominio.'});
-    const zones=(await this.request<Zone[]>(token,'/zones?name='+encodeURIComponent(domain.hostname)+'&status=active')).result;
-    const zone=zones.find(item=>item.name===domain.hostname&&item.status==='active');
-    if(!zone)throw new BadRequestException({code:'CLOUDFLARE_ZONE_NOT_FOUND',message:'No se encontró una zona activa para este dominio. Revisa el token y los nameservers.'});
-    await this.vault.store(tenantId,'cloudflare',{token,zoneId:zone.id,zoneName:zone.name});
-    const selector='mailcraft';
-    const names=[domain.hostname,'_mailcraft.'+domain.hostname,'_dmarc.'+domain.hostname,selector+'._domainkey.'+domain.hostname,'_mailchannels.'+domain.hostname];
-    const readRecords=async()=>{
-      const pages=await Promise.all(names.map(name=>this.request<DnsRecord[]>(token,'/zones/'+zone.id+'/dns_records?name='+encodeURIComponent(name)+'&per_page=100')));
-      if(pages.some(page=>(page.result_info?.total_pages??1)>1))throw new ConflictException({code:'DNS_RECORD_LIMIT',message:'Demasiados registros en este nombre. Revisa el DNS antes de continuar.'});
-      return pages.flatMap(page=>page.result);
-    };
-    const records=await readRecords();
-    let changes;
-    const keyName=selector+'._domainkey.'+domain.hostname;
-    const existingKey=records.find(record=>record.name===keyName&&record.type==='TXT'&&/v=DKIM1/i.test(txtContent(record.content)));
-    const existingPublicKey=existingKey?/(?:^|;)\s*p=([A-Za-z0-9+/]+={0,2})(?:;|$)/i.exec(txtContent(existingKey.content))?.[1]:undefined;
-    const dkimRecords=existingPublicKey?{selector,publicKey:existingPublicKey}:await this.emailApi.createDkimKey(tenantId,domain.hostname,selector);
-    if(!dkimRecords.publicKey)throw new ConflictException({code:'DKIM_KEY_INVALID',message:'El registro DKIM existente no se puede reutilizar de forma segura. Revisa el DNS antes de continuar.'});
-    try{changes=planDns(records,domain.hostname,ownershipRecord(tenantId,domain.hostname).value,settings.accountId,selector,dkimRecords.publicKey);}
-    catch(error:unknown){throw new ConflictException({code:error instanceof Error?error.message:'DNS_CONFLICT',message:'Hay un conflicto en SPF, DKIM, DMARC o Domain Lockdown. No se cambió ningún registro. Revisa el código del conflicto.'});}
-    const spfChange=changes.find(change=>change.name===domain.hostname&&/^v=spf1/i.test(change.content));
-    if(spfChange){try{await validateSpfBudget(spfChange.content,name=>this.resolveSpf(name));}catch{throw new ConflictException({code:'SPF_LOOKUP_REVIEW_REQUIRED',message:'No se pudo confirmar el límite de consultas del SPF resultante. No se cambió el DNS. Revisa los includes actuales antes de continuar.'});}}
-    const fingerprint=(items:DnsRecord[])=>createHash('sha256').update(JSON.stringify([...items].sort((a,b)=>a.id.localeCompare(b.id)))).digest('hex');
-    if(changes.length&&fingerprint(records)!==fingerprint(await readRecords()))throw new ConflictException({code:'DNS_CHANGED',message:'Los registros cambiaron durante la revisión. Vuelve a intentarlo.'});
-    if(changes.length){
-      const posts=changes.filter(change=>change.action==='create').map(change=>({type:'TXT',name:change.name,content:JSON.stringify(change.content),ttl:1,comment:'MailCraft domain setup'}));
-      const patches=changes.filter(change=>change.action==='update').map(change=>({id:change.id,content:JSON.stringify(change.content)}));
-      await this.request(token,'/zones/'+zone.id+'/dns_records/batch','POST',{posts,patches});
-    }
-    return {configured:true,zone:zone.name,changes:changes.map(change=>({action:change.action,name:change.name,content:JSON.stringify(change.content)})),message:changes.length?'Registros instalados. Espera su propagación y comprueba el DNS.':'Los registros ya estaban configurados.'};
-  }
+  if(changes.length){const posts=changes.map(item=>({type:item.type,name:item.name,content:item.content,ttl:1,...('priority' in item?{priority:item.priority}:{}),...(item.type==='CNAME'?{proxied:false}:{})}));await this.request(token,'/zones/'+zone.id+'/dns_records/batch','POST',{posts});}
+  await this.vault.store(tenantId,'cloudflare',{token,zoneId:zone.id,zoneName:zone.name});
+  return {configured:true,zone:zone.name,changes,message:changes.length?'Registros de SES instalados. Espera la propagación y verifica el dominio.':'Los registros de SES ya estaban configurados.'};
+ }
 }

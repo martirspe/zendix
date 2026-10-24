@@ -8,3 +8,9 @@ dist/
 deploy/secrets/
 backups/
 coverage/
+
+infra/terraform/ses/production.tfvars
+infra/terraform/ses/*.tfstate
+infra/terraform/ses/*.tfstate.*
+infra/terraform/ses/*.tfplan
+infra/terraform/ses/.terraform/

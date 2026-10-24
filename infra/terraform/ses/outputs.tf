@@ -1,0 +1,10 @@
+output "configuration_set_name" { value = aws_sesv2_configuration_set.campaign.configuration_set_name }
+output "events_topic_arn" { value = aws_sns_topic.ses_events.arn }
+output "sns_webhook_pending_confirmation" { value = aws_sns_topic_subscription.webhook.pending_confirmation }
+output "account_identity_status" { value = var.manage_account_email_identity ? aws_sesv2_email_identity.account[0].verification_status : "managed-outside-terraform" }
+output "campaign_identity_status" { value = aws_sesv2_email_identity.campaign.verification_status }
+output "campaign_dkim_status" { value = aws_sesv2_email_identity.campaign.dkim_signing_attributes[0].status }
+output "assets_bucket_name" { value = aws_s3_bucket.assets.bucket }
+output "assets_distribution_domain" { value = aws_cloudfront_distribution.assets.domain_name }
+output "assets_distribution_id" { value = aws_cloudfront_distribution.assets.id }
+output "assets_public_base_url" { value = "https://${var.media_domain}" }

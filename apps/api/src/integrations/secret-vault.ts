@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, createPublicKey, generateKeyPair, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Database } from '../database';
@@ -51,17 +51,4 @@ export class SecretVault {
     return record ? unseal(record.encryptedPayload, await this.masterKey(), tenantId + ':' + kind) as T : null;
   }
 
-  async dkim(tenantId: string, hostname: string) {
-    if (!/^[a-f\d-]{36}$/i.test(tenantId) || !/^[a-z\d.-]+$/.test(hostname)) throw new Error('Invalid key identity');
-    await this.masterKey();
-    await mkdir(this.directory,{recursive:true,mode:0o700});
-    const path = join(this.directory, tenantId + '-' + hostname + '.pem');
-    try { return this.keyMaterial(await readFile(path, 'utf8')); }
-    catch (error: unknown) { if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error; }
-    const privateKey = await new Promise<string>((resolve, reject) => generateKeyPair('rsa', {modulusLength: 2048, publicKeyEncoding: {type: 'spki', format: 'pem'}, privateKeyEncoding: {type: 'pkcs8', format: 'pem'}}, (error, _publicKey, key) => error ? reject(error) : resolve(key)));
-    try { await writeFile(path, privateKey, {flag: 'wx', mode: 0o600}); }
-    catch (error: unknown) { if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error; }
-    return this.keyMaterial(await readFile(path, 'utf8'));
-  }
-  private keyMaterial(privateKey: string) { return {privateKey, publicKey: createPublicKey(privateKey).export({type: 'spki', format: 'der'}).toString('base64')}; }
 }

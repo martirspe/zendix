@@ -6,7 +6,7 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { Database } from '../database';
 import { SecretVault } from './secret-vault';
-import { MailchannelsEmailApi } from './mailchannels-email-api';
+import { SesEmail } from './ses-email';
 import { DomainsController } from '../domains.controller';
 import { EmailDocumentDto } from '../email-document.dto';
 import { compileEmail, EmailBlock } from '../../../../packages/email/src/compiler';
@@ -26,7 +26,7 @@ export class TestEmailService implements OnModuleInit,OnModuleDestroy {
   private worker!:Worker<TestJob>;
   private timer?:ReturnType<typeof setInterval>;
   private reconciling=false;
-  constructor(@Inject(Database) private readonly db:Database,@Inject(SecretVault) private readonly vault:SecretVault,@Inject(MailchannelsEmailApi) private readonly emailApi:MailchannelsEmailApi,@Inject(DomainsController) private readonly domains:DomainsController){}
+  constructor(@Inject(Database) private readonly db:Database,@Inject(SecretVault) private readonly vault:SecretVault,@Inject(SesEmail) private readonly emailApi:SesEmail,@Inject(DomainsController) private readonly domains:DomainsController){}
 
   onModuleInit(){
     const url=new URL(process.env['REDIS_URL']??'redis://redis:6379');
@@ -89,22 +89,21 @@ export class TestEmailService implements OnModuleInit,OnModuleDestroy {
     let submitting=false;
     try{
       const settings=await this.emailApi.settings(tenantId);this.emailApi.assertRecipient(settings,record.recipient);
+      await this.emailApi.validateWebhook(tenantId);
       if(settings.fromEmail!==record.fromEmail)throw new Error('SENDER_SETTINGS_CHANGED');
       const host=settings.fromEmail.split('@')[1]??'';
       const domain=await this.db.domain.findUnique({where:{tenantId_hostname:{tenantId,hostname:host}}});if(!domain)throw new Error('SENDER_DOMAIN_NOT_CONFIGURED');
       const report=await this.domains.check({tenantId,userId:'worker',headers:{}},domain.id);
-      if(report.errors.length||!report.result.ownership||!report.result.spf||!report.result.dkim||!report.result.dmarc||!report.result.lockdown)throw new Error('DNS_NOT_READY');
-      const selector='mailcraft';
-      if(!report.records.dkim.some(record=>record.includes('p=')&&record.includes('v=DKIM1')))throw new Error('DKIM_KEY_MISMATCH');
+      if(report.errors.length||!report.result.ownership||!report.result.spf||!report.result.dkim||!report.result.dmarc||!report.result.identity)throw new Error('DNS_NOT_READY');
       const current=await this.db.contact.findUnique({where:{tenantId_id:{tenantId,id:record.contactId}}});if(!current||current.archivedAt||current.status!=='subscribed')throw new Error('RECIPIENT_SUPPRESSED');
       const unsubscribeUrl=settings.publicBaseUrl+'/unsubscribe/'+signUnsubscribe(tenantId,current.id,await this.vault.masterKey());
       if(!record.html.includes(unsubscribeUrl))throw new Error('SENDER_SETTINGS_CHANGED');
       const submission=await this.db.testEmail.updateMany({where:{tenantId,id,status:'preparing'},data:{status:'submitting'}});
       if(!submission.count)return;submitting=true;
-      const providerResult=await this.emailApi.send(tenantId,{recipient:record.recipient,fromEmail:settings.fromEmail,fromName:settings.fromName,subject:record.subject,html:record.html,text:'Correo de prueba de MailCraft. Abre la versión HTML para revisar el diseño. Cancelar suscripción: '+unsubscribeUrl,unsubscribeUrl,dkimSelector:selector,dispatchId:id});
+      const providerResult=await this.emailApi.send(tenantId,{recipient:record.recipient,fromEmail:settings.fromEmail,fromName:settings.fromName,subject:record.subject,html:record.html,text:'Correo de prueba de MailCraft. Abre la versión HTML para revisar el diseño. Cancelar suscripción: '+unsubscribeUrl,unsubscribeUrl,dispatchId:id});
       await this.db.testEmail.updateMany({where:{tenantId,id,status:'submitting'},data:providerResult.providerMessageId?{status:'accepted',messageId:providerResult.providerMessageId,errorCode:null}:{status:'uncertain',errorCode:'EMAIL_API_RESULT_UNKNOWN'}});
     }catch(error:unknown){
-      const known=['DNS_NOT_READY','DKIM_KEY_MISMATCH','RECIPIENT_SUPPRESSED','SENDER_SETTINGS_CHANGED','SENDER_DOMAIN_NOT_CONFIGURED'];
+      const known=['DNS_NOT_READY','RECIPIENT_SUPPRESSED','SENDER_SETTINGS_CHANGED','SENDER_DOMAIN_NOT_CONFIGURED'];
       const errorCode=error&&typeof error==='object'&&'code' in error?String(error.code):'';
       const failure=submitting?{status:errorCode==='EAUTH'||errorCode==='EREJECTED'?'failed':'uncertain',code:errorCode==='EAUTH'?'EMAIL_API_AUTH_FAILED':errorCode==='EREJECTED'?'EMAIL_API_REJECTED':'EMAIL_API_RESULT_UNKNOWN'}:{status:'failed',code:error instanceof Error&&known.includes(error.message)?error.message:'TEST_PREPARATION_FAILED'};
       await this.db.testEmail.updateMany({where:{tenantId,id,status:{in:['preparing','submitting']}},data:{status:failure.status,errorCode:failure.code}});

@@ -1,6 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+- Add Terraform for Amazon SES campaign identity, Easy DKIM, custom MAIL FROM, suppression, SNS event delivery, scoped IAM and Cloudflare DNS; document operator gates for commercial sending.
+- Extend AWS Terraform with private S3 campaign assets, CloudFront OAC and TLS certificate, Cloudflare validation/media records, and scoped tenant object-prefix access for the Hetzner-hosted runtime.
+- Replace active MailChannels transport with Amazon SES v2 for campaign previews, durable campaign dispatch and separate account-access mail. Use AWS IAM credentials, Easy DKIM, custom MAIL FROM, SES configuration sets and signed SNS event delivery; retain historical provider records without replaying them.
+- Migrate the sender verification flag to SES, reset stale provider DNS checks, replace Cloudflare DNS provisioning and console instructions, and keep commercial sending gated on consent, verified SES events, DNS and an accepted current preview.
+- Mark unfinished legacy dispatches failed or uncertain without replay, fail their scheduled/sending campaigns, and stop the old API worker before the production migration.
 - Add a dedicated Spanish account-access experience with profile-aware registration, terms acceptance, optional one-time-code login, email verification, password recovery and credential-verified workspace selection.
 - Add optional Google Identity Services sign-in and registration with server-side signing-key/audience/issuer/email verification, safe verified-email linking, terms-gated signup, tenant-scoped identity and the same workspace picker; keep disabled until configured.
 - Add tenant-owned expiring authentication challenges, one-time code verification, password-reset session revocation, per-email and per-IP abuse limits, and a separately mounted MailChannels credential for account emails; preserve duplicate email identities across workspaces.

@@ -2,7 +2,7 @@
 
 # MailCraft — Enterprise-Grade Email Marketing & Automation SaaS
 
-## Angular 22 + NestJS + PostgreSQL + MailChannels + Cursor AI / Codex
+## Angular 22 + NestJS + PostgreSQL + Amazon SES + Cursor AI / Codex
 
 A partir de este momento actuarás como el equipo completo de ingeniería de MailCraft.
 
@@ -30,7 +30,7 @@ Asume simultáneamente los siguientes roles:
 
 Tu responsabilidad **NO** es únicamente escribir código.
 
-Tu responsabilidad es diseñar y desarrollar un **SaaS comercial premium 2027**, comparable en craft, deliverability y confiabilidad con Brevo (Sendinblue), Mailchimp y Resend — y **mejor que el piso de categoría** en creación visual de correo, gestión de contactos e infraestructura de envío masivo vía **MailChannels API**.
+Tu responsabilidad es diseñar y desarrollar un **SaaS comercial premium 2027**, comparable en craft, deliverability y confiabilidad con Brevo (Sendinblue), Mailchimp y Resend — y **mejor que el piso de categoría** en creación visual de correo, gestión de contactos e infraestructura de envío masivo vía **Amazon SES API**.
 
 Cada decisión deberá respetar esta jerarquía de prioridad (cuando choquen, gana la superior):
 
@@ -61,7 +61,7 @@ Slogan (provisional):
 
 **No estamos construyendo un PMV.**
 
-Estamos construyendo un producto comercial 2027: centrado principalmente en la funcionalidad de **Email Marketing con Drag-and-Drop Visual Editor**, aprovechando el motor de envío de **MailChannels** (plan de pago/SMTP/API) para lograr tasas de apertura superiores y costos optimizados.
+Estamos construyendo un producto comercial 2027: centrado principalmente en la funcionalidad de **Email Marketing con Drag-and-Drop Visual Editor**, aprovechando el motor de envío de **Amazon SES** (API v2) para lograr tasas de apertura superiores y costos optimizados.
 
 ## Tesis competitiva (obligatoria)
 
@@ -73,9 +73,9 @@ Por instrucción explícita del usuario, el objetivo es un clon exacto de Brevo 
 
 Regla de diseño de producto:
 
-1. **Piso (CORE MVP ACTUAL)** — Email Marketing completo: creación de newsletters y campañas visuales con editor drag-and-drop, listas de contactos, importación CSV, segmentación básica, gestión de rebotes/bajas y envío masivo optimizado mediante MailChannels API.
+1. **Piso (CORE MVP ACTUAL)** — Email Marketing completo: creación de newsletters y campañas visuales con editor drag-and-drop, listas de contactos, importación CSV, segmentación básica, gestión de rebotes/bajas y envío masivo optimizado mediante Amazon SES API.
 2. **Mapa de Ruta (POST-CORE)** — Automatizaciones/Workflows, Transaccional Email API, SMS Marketing, WhatsApp Campaigns, CRM / Deal Pipeline, Landing Pages & Signup Forms.
-3. **Cuña “un paso más allá”** — Cada módulo shippeado debe incluir al menos una ventaja clara vs. Brevo: editor visual más fluido (JSON-to-Email-HTML estricto), vista previa en vivo cross-device impecable, diagnóstico SPF/DKIM/DMARC integrado en tiempo real y costo por envío ultra competitivo vía MailChannels.
+3. **Cuña “un paso más allá”** — Cada módulo shippeado debe incluir al menos una ventaja clara vs. Brevo: editor visual más fluido (JSON-to-Email-HTML estricto), vista previa en vivo cross-device impecable, diagnóstico SPF/DKIM/DMARC integrado en tiempo real y costo por envío ultra competitivo vía Amazon SES.
 4. **Verificación** — No declarar paridad por cambiar colores o nombres: reproducir y probar los recorridos, estados y comportamiento observados en Brevo.
 
 ---
@@ -87,7 +87,7 @@ Regla de diseño de producto:
 |                        FASE 1: CORE (DESARROLLO INMEDIATO)                        |
 |                                                                                   |
 |  +--------------------+   +--------------------+   +---------------------------+  |
-|  |  VISUAL EMAIL      |   |  MAILCHANNELS      |   |  CONTACTS & LISTS         |  |
+|  |  VISUAL EMAIL      |   |  AMAZON SES        |   |  CONTACTS & LISTS         |  |
 |  |  BUILDER          |   |  DELIVERY ENGINE   |   |  MANAGEMENT               |  |
 |  |  (Drag & Drop)     |   |  (API Integration) |   |  (CSV, Segment, Bounces)  |  |
 |  +--------------------+   +--------------------+   +---------------------------+  |
@@ -116,7 +116,7 @@ Regla de diseño de producto:
 
 * **Craft de producto / UI:** Linear, Resend — claridad, tipografía limpia, densidad útil en consola.
 * **Editor visual:** Unlayer, Email on Acid — referencias de capacidad de arrastrar y soltar con output de HTML compatible con Outlook, Gmail y Apple Mail.
-* **Entregabilidad y Motor:** MailChannels API, Postmark — respuesta inmediata en webhooks, reputación de dominio, cero lag de encolado.
+* **Entregabilidad y Motor:** Amazon SES API, Postmark — respuesta inmediata en webhooks, reputación de dominio, cero lag de encolado.
 * **Piso de categoría (Brevo / Sendinblue):** Qué funciones de newsletter, contactos y campañas espera el usuario.
 
 ## Ventajas que MailCraft debe ganar (cuñas “un paso más allá”)
@@ -124,7 +124,7 @@ Regla de diseño de producto:
 | Cuña | Qué significa en producto | Por qué supera al referente (Brevo) |
 | --- | --- | --- |
 | **Visual Email Builder 2027** | Editor drag-and-drop con respuesta instantánea, bloques responsivos limpios, exportación a HTML email-safe impecable (tables-based fallback automático sin romper estilos en Outlook/Gmail) | Menos código basura, mejor renderizado universal y edición sin lag |
-| **Infraestructura MailChannels** | Uso directo del plan de pago de MailChannels vía API/SMTP relayeado con firma DKIM por tenant | Tiempos de entrega casi instantáneos y costo de infraestructura drásticamente reducido |
+| **Infraestructura Amazon SES** | Envío mediante SES API v2, Easy DKIM por dominio y eventos SNS firmados y correlacionados por tenant | Entrega medible y costo de infraestructura controlado |
 | **Guardián de Entregabilidad** | Diagnóstico en vivo de registros DNS (SPF, DKIM, DMARC, MX) + validador de spam words en el copy del correo antes de enviar | Previene que las campañas caigan en spam antes de que ocurra el desastre |
 | **Auditoría de Email & Heatmap** | Analytics de aperturas, clics por enlace en mapa visual del correo, rebotes (hard/soft) y procesamiento de quejas de spam (FBL) en tiempo real | Reportes más claros y accionables sin pagar planes Enterprise |
 
@@ -136,7 +136,7 @@ Toda superficie tocada en MailCraft debe contemplar:
 
 * **Loading:** Skeletons estructurales adaptados al layout de la página (no spinner único central).
 * **Empty:** Accionable (ej. "No tienes listas de contactos. Importa un CSV o crea tu primera lista en 1 clic").
-* **Error:** Recuperable (mensajes claros de fallos en envíos de MailChannels o DNS inválidos con guía paso a paso).
+* **Error:** Recuperable (mensajes claros de fallos en envíos de Amazon SES o DNS inválidos con guía paso a paso).
 * **Éxito:** Feedback contextual o desestimable.
 * **Permisos y Aislamiento Multi-Tenant:** Garantizado mediante `tenant_id` obligatorio en base de datos, colas y consultas de correo.
 
@@ -162,11 +162,11 @@ Toda superficie tocada en MailCraft debe contemplar:
 * Envío inmediato o programado (Scheduled Campaigns) con manejo de zonas horarias.
 * Test A/B básico (Asunto A vs Asunto B) con distribución porcentual de prueba.
 
-### C. Motor de Envío MailChannels & Entregabilidad
+### C. Motor de Envío Amazon SES & Entregabilidad
 
-* Integración profunda con **MailChannels API / SMTP Relay**.
+* Integración profunda con **Amazon SES API v2**.
 * Gestión de dominios de remitente por tenant: Verificación automática de TXT (SPF), CNAME/TXT (DKIM) y DMARC.
-* Manejo de Webhooks de MailChannels:
+* Manejo de eventos de SES mediante SNS firmado:
 * `delivered`: Confirmación de entrega.
 * `bounce` (hard/soft): Marcado automático de contacto infructuoso o temporal.
 * `spam_complaint` (FBL): Desinscripción automática inmediata del contacto.
@@ -216,7 +216,7 @@ Dejar los módulos preparados arquitectónicamente (modelos de datos y stubs de 
 
 * **NestJS** sobre **Fastify**.
 * **Prisma ORM** + **PostgreSQL**.
-* **MailChannels API Client** (Módulo dedicado `mailchannels`).
+* **Amazon SES API Client** (Módulo dedicado `ses`).
 * **Redis + BullMQ** para procesamiento asíncrono de colas de envío masivo, retries y procesamiento de webhooks.
 * DTO Validation (`class-validator` / `class-transformer`).
 * JWT + Refresh Tokens, Multi-tenant TenantGuard, Interceptors, Filters.
@@ -232,7 +232,7 @@ Modelo de datos Multi-Tenant estricto. Tablas principales:
 * `List` & `ContactList` (Listas y pertenencia)
 * `Campaign` (Campañas de marketing)
 * `EmailTemplate` (Estructura JSON y HTML compilado de correos)
-* `EmailJob` / `EmailDispatch` (Registro de cada correo enviado a MailChannels)
+* `EmailJob` / `EmailDispatch` (Registro de cada correo enviado a Amazon SES)
 * `EmailEvent` (Logs de aperturas, clics, rebotes, spam)
 
 ---
@@ -263,7 +263,7 @@ Una tarea está hecha solo si:
 
 1. Cumple estrictamente con esta Constitución.
 2. Todo el correo generado por el Visual Builder compite y renderiza correctamente en móviles y escritorio.
-3. El módulo de envíos respeta la API de MailChannels, incluyendo firmas DKIM y cabeceras de desuscripción `List-Unsubscribe`.
+3. El módulo de envíos respeta la API de Amazon SES, incluyendo firmas DKIM y cabeceras de desuscripción `List-Unsubscribe`.
 4. Manejo correcto de Loading / Empty / Error / Success en la superficie desarrollada.
 5. Filtros y consultas backend aisladas estrictamente por `tenant_id`.
 6. Pruebas de compilación exitosas (`build OK`).
@@ -275,6 +275,6 @@ Una tarea está hecha solo si:
 
 Al ejecutar desarrollo para MailCraft:
 
-1. Concéntrate en la funcionalidad **Email Marketing (Visual Drag-and-Drop Builder + MailChannels Dispatch Engine)**.
+1. Concéntrate en la funcionalidad **Email Marketing (Visual Drag-and-Drop Builder + Amazon SES Dispatch Engine)**.
 2. Trata las funcionalidades de Automatización, Transaccional, SMS, WhatsApp y CRM como un **Mapa de Ruta (Roadmap)** accesible desde la arquitectura pero inactivo/stubbed en la interfaz inicial.
 3. Aplica las decisiones técnicas descritas manteniendo los estándares de Angular 22, NestJS, Prisma y la jerarquía de prioridades.

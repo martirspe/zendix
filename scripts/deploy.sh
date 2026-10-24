@@ -51,9 +51,9 @@ for name in jwt_secret vault_key database_password redis_password; do
  [[ "$(setting "$key")" == "$expected" && -s "$expected" ]] || { echo "Automated deployment requires the configured default secret file: $expected. Existing custom installations must use the manual runbook." >&2; exit 1; }
  export "$key=$expected"
 done
-auth_key_path="$(setting AUTH_EMAIL_API_KEY_PATH)"
-[[ "$auth_key_path" == ./deploy/secrets/auth_email_api_key && -f ./deploy/secrets/auth_email_api_key ]] || { echo 'Set up the optional authentication MailChannels key file at ./deploy/secrets/auth_email_api_key; it may be empty until authentication email is configured.' >&2; exit 1; }
-export AUTH_EMAIL_API_KEY_PATH="$auth_key_path" AUTH_EMAIL_FROM_EMAIL="$(setting AUTH_EMAIL_FROM_EMAIL)" AUTH_EMAIL_FROM_NAME="$(setting AUTH_EMAIL_FROM_NAME)" AUTH_REQUIRE_EMAIL_VERIFICATION="$(setting AUTH_REQUIRE_EMAIL_VERIFICATION)" GOOGLE_OAUTH_ENABLED="$(setting GOOGLE_OAUTH_ENABLED)" GOOGLE_CLIENT_ID="$(setting GOOGLE_CLIENT_ID)"
+aws_credentials_path="$(setting AWS_CREDENTIALS_PATH)"
+[[ "$aws_credentials_path" == ./deploy/secrets/aws_credentials && -f ./deploy/secrets/aws_credentials ]] || { echo 'Set up the scoped AWS credentials file at ./deploy/secrets/aws_credentials, or use an instance role.' >&2; exit 1; }
+export AWS_CREDENTIALS_PATH="$aws_credentials_path" AWS_REGION="$(setting AWS_REGION)" SES_EVENTS_TOPIC_ARN="$(setting SES_EVENTS_TOPIC_ARN)" AUTH_EMAIL_SES_REGION="$(setting AUTH_EMAIL_SES_REGION)" AUTH_EMAIL_SES_CONFIGURATION_SET="$(setting AUTH_EMAIL_SES_CONFIGURATION_SET)" AUTH_EMAIL_AWS_PROFILE="$(setting AUTH_EMAIL_AWS_PROFILE)" AUTH_EMAIL_FROM_EMAIL="$(setting AUTH_EMAIL_FROM_EMAIL)" AUTH_EMAIL_FROM_NAME="$(setting AUTH_EMAIL_FROM_NAME)" AUTH_REQUIRE_EMAIL_VERIFICATION="$(setting AUTH_REQUIRE_EMAIL_VERIFICATION)" GOOGLE_OAUTH_ENABLED="$(setting GOOGLE_OAUTH_ENABLED)" GOOGLE_CLIENT_ID="$(setting GOOGLE_CLIENT_ID)"
 # The host-proxy override bind-mounts this file into the unprivileged Nginx
 # container; ensure its mode permits the container worker to read it.
 chmod 644 deploy/nginx.proxy.conf
@@ -77,10 +77,10 @@ backup_directory="backups/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -m 700 -p "$backup_directory"
 "${compose[@]}" exec -T postgres pg_dump -U mailcraft -Fc mailcraft > "$backup_directory/database.dump"
 cp .env.production "$backup_directory/configuration.env"
-tar -czf "$backup_directory/secrets.tar.gz" deploy/secrets/jwt_secret deploy/secrets/vault_key deploy/secrets/database_password deploy/secrets/redis_password deploy/secrets/auth_email_api_key
-"${compose[@]}" run --rm -T --no-deps --entrypoint tar api -C /var/lib/mailcraft/keys -czf - . > "$backup_directory/dkim.tar.gz"
-[[ -s "$backup_directory/database.dump" && -s "$backup_directory/dkim.tar.gz" ]] || exit 1
+tar -czf "$backup_directory/secrets.tar.gz" deploy/secrets/jwt_secret deploy/secrets/vault_key deploy/secrets/database_password deploy/secrets/redis_password deploy/secrets/aws_credentials
+[[ -s "$backup_directory/database.dump" && -s "$backup_directory/secrets.tar.gz" ]] || exit 1
 echo "Private pre-migration backup: $backup_directory. Move an encrypted copy off-host."
+"${compose[@]}" stop api
 "${compose[@]}" run --rm -T --no-deps migrate
 "${compose[@]}" up -d --force-recreate --no-build --wait --wait-timeout 180 api web
 if [[ "$bootstrap_owner" == true ]]; then

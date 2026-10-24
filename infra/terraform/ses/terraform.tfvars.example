@@ -1,0 +1,14 @@
+aws_region = "us-east-1"
+environment = "production"
+sender_domain = "reclamofacil.com"
+mail_from_subdomain = "bounce"
+cloudflare_zone_id = "replace-with-cloudflare-zone-id"
+cloudflare_api_token = "replace-with-zone-scoped-api-token"
+app_public_url = "https://app.zendix.site"
+campaign_sender_email = "noreply@reclamofacil.com"
+account_sender_email = "access@reclamofacil.com"
+media_domain = "media.reclamofacil.com"
+s3_force_destroy = false
+manage_account_email_identity = false
+dmarc_policy = "none"
+domain_ownership_token = "replace-with-per-tenant-domain-proof"

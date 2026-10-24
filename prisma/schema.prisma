@@ -93,7 +93,7 @@ model Domain {
  spfVerified Boolean @default(false) @map("spf_verified")
  dkimVerified Boolean @default(false) @map("dkim_verified")
  dmarcVerified Boolean @default(false) @map("dmarc_verified")
- lockdownVerified Boolean @default(false) @map("lockdown_verified")
+ sesVerified Boolean @default(false) @map("ses_verified")
  checkedAt DateTime? @map("checked_at")
  @@unique([tenantId, hostname])
 }
@@ -186,7 +186,7 @@ model EmailDispatch {
  campaign Campaign @relation(fields: [tenantId, campaignId], references: [tenantId, id])
  contact Contact @relation(fields: [tenantId, contactId], references: [tenantId, id])
  providerId String? @map("provider_id")
- provider EmailProvider @default(mailchannels)
+ provider EmailProvider @default(ses)
  recipient String?
  fromEmail String? @map("from_email")
  subject String?
