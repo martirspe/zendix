@@ -10,7 +10,7 @@ export class TenantGuard implements CanActivate {
   const request=context.switchToHttp().getRequest<TenantRequest>();
   const token=request.headers.authorization?.match(/^Bearer (.+)$/)?.[1];if(!token)throw new UnauthorizedException();
   let payload:{sub:string;tenantId:string;sid:string};
-  try{payload=await this.jwt.verifyAsync(token,{algorithms:['HS256'],issuer:'mailcraft',audience:'mailcraft-console'});if(!payload.sub||!payload.tenantId||!payload.sid)throw new Error();}catch{throw new UnauthorizedException();}
+  try{payload=await this.jwt.verifyAsync(token,{algorithms:['HS256'],issuer:'zendix',audience:'zendix-console'});if(!payload.sub||!payload.tenantId||!payload.sid)throw new Error();}catch{throw new UnauthorizedException();}
   const session=await this.db.refreshSession.findFirst({where:{id:payload.sid,tenantId:payload.tenantId,userId:payload.sub,revokedAt:null,expiresAt:{gt:new Date()}},include:{user:true}});
   if(!session)throw new UnauthorizedException();
   request.tenantId=session.tenantId;request.userId=session.userId;request.userRole=session.user.role;

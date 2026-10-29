@@ -31,8 +31,8 @@ export class TestEmailService implements OnModuleInit,OnModuleDestroy {
   onModuleInit(){
     const url=new URL(process.env['REDIS_URL']??'redis://redis:6379');
     const connection={host:url.hostname,port:Number(url.port||6379),password:url.password||undefined,maxRetriesPerRequest:null};
-    this.queue=new Queue<TestJob>('mailcraft-test-emails',{connection});
-    this.worker=new Worker<TestJob>('mailcraft-test-emails',job=>this.process(job),{connection,concurrency:1,lockDuration:120000});
+    this.queue=new Queue<TestJob>('zendix-test-emails',{connection});
+    this.worker=new Worker<TestJob>('zendix-test-emails',job=>this.process(job),{connection,concurrency:1,lockDuration:120000});
     this.worker.on('error',()=>undefined);
     this.worker.on('failed',()=>undefined);
     this.queue.on('error',()=>undefined);
@@ -100,7 +100,7 @@ export class TestEmailService implements OnModuleInit,OnModuleDestroy {
       if(!record.html.includes(unsubscribeUrl))throw new Error('SENDER_SETTINGS_CHANGED');
       const submission=await this.db.testEmail.updateMany({where:{tenantId,id,status:'preparing'},data:{status:'submitting'}});
       if(!submission.count)return;submitting=true;
-      const providerResult=await this.emailApi.send(tenantId,{recipient:record.recipient,fromEmail:settings.fromEmail,fromName:settings.fromName,subject:record.subject,html:record.html,text:'Correo de prueba de MailCraft. Abre la versión HTML para revisar el diseño. Cancelar suscripción: '+unsubscribeUrl,unsubscribeUrl,dispatchId:id});
+      const providerResult=await this.emailApi.send(tenantId,{recipient:record.recipient,fromEmail:settings.fromEmail,fromName:settings.fromName,subject:record.subject,html:record.html,text:'Correo de prueba de Zendix. Abre la versión HTML para revisar el diseño. Cancelar suscripción: '+unsubscribeUrl,unsubscribeUrl,dispatchId:id});
       await this.db.testEmail.updateMany({where:{tenantId,id,status:'submitting'},data:providerResult.providerMessageId?{status:'accepted',messageId:providerResult.providerMessageId,errorCode:null}:{status:'uncertain',errorCode:'EMAIL_API_RESULT_UNKNOWN'}});
     }catch(error:unknown){
       const known=['DNS_NOT_READY','RECIPIENT_SUPPRESSED','SENDER_SETTINGS_CHANGED','SENDER_DOMAIN_NOT_CONFIGURED'];

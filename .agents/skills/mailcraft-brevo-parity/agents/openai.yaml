@@ -1,6 +1,0 @@
-interface:
-  display_name: "MailCraft · Paridad con Brevo"
-  short_description: "Replica diseño y funciones de Brevo en MailCraft"
-  default_prompt: "Usa $mailcraft-brevo-parity para implementar el siguiente recorrido de MailCraft con paridad de diseño y funcionalidad respecto a Brevo, empezando por un acceso profesional sin identificadores técnicos."
-policy:
-  allow_implicit_invocation: true

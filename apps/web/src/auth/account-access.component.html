@@ -1,6 +1,6 @@
 <main class="auth-shell" aria-labelledby="auth-title">
   <header class="auth-brand-row">
-    <a class="auth-brand" href="/" aria-label="MailCraft, inicio"><span class="auth-brand-mark">m<span>↗</span></span><span>mailcraft<span class="auth-brand-dot">®</span></span></a>
+    <a class="auth-brand" href="/" aria-label="Zendix, inicio"><span class="auth-brand-mark">z<span>↗</span></span><span>zendix<span class="auth-brand-dot">®</span></span></a>
     <span class="auth-product">EMAIL MARKETING</span>
   </header>
   <section class="auth-card">
@@ -70,7 +70,7 @@
     @if(phase()==='reset') { <div class="auth-actions"><span>¿El código venció?</span><button type="button" [disabled]="loading()" (click)="requestPasswordReset()">Solicitar otro código</button></div> }
     @if(phase()==='forgot'||phase()==='code'||phase()==='verification'||phase()==='reset') { <button type="button" class="auth-back" [disabled]="loading()" (click)="backToLogin()">Volver a iniciar sesión</button> }
     @if(mode()==='login'&&phase()==='password'&&!workspaces().length) { <p class="auth-mode-note">{{productionMode()?'Tu sesión se renueva de forma segura en este dispositivo.':'En la demostración, los datos locales están separados de los de tu cuenta.'}}</p> }
-    @if(mode()==='register'&&!registrationAllowed()) { <p class="auth-error" role="status">El registro público está cerrado. Solicita acceso al administrador de MailCraft.</p> }
-    <footer class="auth-footer"><span>© {{currentYear}} MailCraft</span><span>Diseña y conecta con intención</span></footer>
+    @if(mode()==='register'&&!registrationAllowed()) { <p class="auth-error" role="status">El registro público está cerrado. Solicita acceso al administrador de Zendix.</p> }
+    <footer class="auth-footer"><span>© {{currentYear}} Zendix</span><span>Diseña y conecta con intención</span></footer>
   </section>
 </main>

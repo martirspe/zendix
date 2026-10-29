@@ -20,13 +20,12 @@ export class CloudflareService {
  }
  async configure(tenantId:string,domainId:string,newToken?:string){
   const domain=await this.db.domain.findFirst({where:{tenantId,id:domainId}});if(!domain)throw new NotFoundException();
-  const settings=await this.ses.settings(tenantId);
-  if(settings.fromEmail.split('@')[1]!==domain.hostname)throw new BadRequestException({code:'SENDER_DOMAIN_MISMATCH',message:'El dominio debe coincidir con el remitente de Amazon SES.'});
+  const settings=this.ses.platformSettings();
   const stored=await this.vault.load<CloudflareSettings>(tenantId,'cloudflare'),token=newToken??stored?.token;
   if(!token)throw new BadRequestException({code:'CLOUDFLARE_NOT_CONNECTED',message:'Introduce un token de Cloudflare limitado a esta zona.'});
   const zones=(await this.request<Zone[]>(token,'/zones?name='+encodeURIComponent(domain.hostname)+'&status=active')).result;
   const zone=zones.find(item=>item.name===domain.hostname&&item.status==='active');if(!zone)throw new BadRequestException({code:'CLOUDFLARE_ZONE_NOT_FOUND',message:'No se encontró una zona activa para este dominio.'});
-  const identity=await this.ses.identity(tenantId,domain.hostname);
+  const identity=await this.ses.provisionIdentity(tenantId,domain.hostname);
   const tokens=identity.DkimAttributes?.Tokens??[],mailFrom=identity.MailFromAttributes?.MailFromDomain;
   if(tokens.length!==3||!mailFrom||!mailFrom.endsWith('.'+domain.hostname))throw new BadRequestException({code:'SES_IDENTITY_INCOMPLETE',message:'Configura Easy DKIM y un subdominio MAIL FROM en la identidad de SES antes de continuar.'});
   const desired=[{type:'TXT',name:ownershipRecord(tenantId,domain.hostname).name,content:ownershipRecord(tenantId,domain.hostname).value},

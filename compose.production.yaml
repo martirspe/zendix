@@ -1,4 +1,4 @@
-name: mailcraft-production
+name: zendix-production
 services:
   gateway:
     build: {context: ., target: gateway}
@@ -32,21 +32,22 @@ services:
       APP_PUBLIC_URL: https://${APP_HOST:?Set APP_HOST}
       ALLOW_REGISTRATION: "false"
       JWT_SECRET_FILE: /run/secrets/jwt_secret
-      MAILCRAFT_MASTER_KEY_FILE: /run/secrets/vault_key
+      ZENDIX_MASTER_KEY_FILE: /run/secrets/vault_key
       DATABASE_HOST: postgres
-      DATABASE_USER: mailcraft
-      DATABASE_NAME: mailcraft
+      DATABASE_USER: zendix
+      DATABASE_NAME: zendix
       DATABASE_PASSWORD_FILE: /run/secrets/database_password
       REDIS_HOST: redis
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       AWS_SHARED_CREDENTIALS_FILE: /run/secrets/aws_credentials
       SES_EVENTS_TOPIC_ARN: ${SES_EVENTS_TOPIC_ARN:-}
+      SES_CONFIGURATION_SET: ${SES_CONFIGURATION_SET:-}
       AWS_REGION: ${AWS_REGION:-}
       AUTH_EMAIL_SES_REGION: ${AUTH_EMAIL_SES_REGION:-}
       AUTH_EMAIL_SES_CONFIGURATION_SET: ${AUTH_EMAIL_SES_CONFIGURATION_SET:-}
       AUTH_EMAIL_AWS_PROFILE: ${AUTH_EMAIL_AWS_PROFILE:-}
       AUTH_EMAIL_FROM_EMAIL: ${AUTH_EMAIL_FROM_EMAIL:-}
-      AUTH_EMAIL_FROM_NAME: ${AUTH_EMAIL_FROM_NAME:-MailCraft}
+      AUTH_EMAIL_FROM_NAME: ${AUTH_EMAIL_FROM_NAME:-Zendix}
       AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
       GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -70,8 +71,8 @@ services:
     build: {context: ., target: migrate}
     environment:
       DATABASE_HOST: postgres
-      DATABASE_USER: mailcraft
-      DATABASE_NAME: mailcraft
+      DATABASE_USER: zendix
+      DATABASE_NAME: zendix
       DATABASE_PASSWORD_FILE: /run/secrets/database_password
     secrets: [database_password]
     depends_on:
@@ -80,13 +81,13 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: mailcraft
-      POSTGRES_DB: mailcraft
+      POSTGRES_USER: zendix
+      POSTGRES_DB: zendix
       POSTGRES_PASSWORD_FILE: /run/secrets/database_password
     secrets: [database_password]
     volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U mailcraft"]
+      test: [CMD-SHELL, "pg_isready -U zendix"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -94,9 +95,9 @@ services:
   redis:
     image: redis:7-alpine
     user: redis
-    entrypoint: [sh, /opt/mailcraft/redis-production.sh]
+    entrypoint: [sh, /opt/zendix/redis-production.sh]
     secrets: [redis_password]
-    volumes: ["redis_data:/data", "./scripts/redis-production.sh:/opt/mailcraft/redis-production.sh:ro"]
+    volumes: ["redis_data:/data", "./scripts/redis-production.sh:/opt/zendix/redis-production.sh:ro"]
     healthcheck:
       test: [CMD-SHELL, "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli ping | grep -q PONG"]
       interval: 5s

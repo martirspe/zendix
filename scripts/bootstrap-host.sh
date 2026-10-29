@@ -11,13 +11,13 @@ app_host="$1"; upstream_port="$2"; certificate_email="$3"
 [[ "${EUID}" -eq 0 ]] || { echo 'Run host setup with sudo.' >&2; exit 1; }
 config_path="/etc/nginx/sites-available/zendix"
 enabled_path="/etc/nginx/sites-enabled/zendix"
-legacy_enabled_path="/etc/nginx/sites-enabled/mailcraft-${app_host}.conf"
+legacy_enabled_path="/etc/nginx/sites-enabled/zendix-${app_host}.conf"
 if ! command -v nginx >/dev/null || ! command -v certbot >/dev/null; then
   command -v apt-get >/dev/null || { echo 'Install nginx, certbot and the Nginx Certbot plugin using your OS package manager.' >&2; exit 1; }
   apt-get update
   apt-get install -y nginx certbot python3-certbot-nginx
 fi
-# A previous MailCraft naming convention may leave a broken enabled symlink
+# A previous Zendix naming convention may leave a broken enabled symlink
 # after the operator renames the project virtual host to `zendix`.
 if [[ -L "$legacy_enabled_path" && ! -e "$legacy_enabled_path" ]]; then
   rm -f "$legacy_enabled_path"
@@ -32,7 +32,7 @@ if [[ ! -f "$config_path" ]]; then
   temp_config="$(mktemp)"
   trap 'rm -f "$temp_config"' EXIT
   cat > "$temp_config" <<CONFIG
-# Managed initial configuration for MailCraft. Certbot maintains TLS directives.
+# Managed initial configuration for Zendix. Certbot maintains TLS directives.
 server {
     listen 80;
     server_name ${app_host};

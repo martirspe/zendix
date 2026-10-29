@@ -1,8 +1,14 @@
 # Changelog
 
 ## [Unreleased]
+- Gate creation of the SES SNS HTTPS subscription until the public API is healthy, allowing safe staged infrastructure deployment without falsely enabling provider-event verification.
+- Store production Terraform state in a dedicated encrypted, versioned, public-access-blocked S3 backend with native state locking.
+- Separate shared Zendix AWS infrastructure from tenant sender domains: Terraform now manages only platform SES/SNS/CDN resources, while authenticated owners prove domain control and receive tenant-scoped SES identity provisioning from the console.
+- Fix duplicate Terraform DNS resources and migrate records to the Cloudflare v5 provider schema so the AWS/Cloudflare infrastructure stack can initialize and validate.
+- Rename the SaaS to Zendix across the console, email, packages, runtime identifiers, deployment configuration, infrastructure, documentation and parity skill for a fresh production deployment.
 - Add Terraform for Amazon SES campaign identity, Easy DKIM, custom MAIL FROM, suppression, SNS event delivery, scoped IAM and Cloudflare DNS; document operator gates for commercial sending.
 - Extend AWS Terraform with private S3 campaign assets, CloudFront OAC and TLS certificate, Cloudflare validation/media records, and scoped tenant object-prefix access for the Hetzner-hosted runtime.
+- Output the scoped runtime IAM username and non-secret Hetzner environment settings; document manual one-time access-key creation outside Terraform state.
 - Replace active MailChannels transport with Amazon SES v2 for campaign previews, durable campaign dispatch and separate account-access mail. Use AWS IAM credentials, Easy DKIM, custom MAIL FROM, SES configuration sets and signed SNS event delivery; retain historical provider records without replaying them.
 - Migrate the sender verification flag to SES, reset stale provider DNS checks, replace Cloudflare DNS provisioning and console instructions, and keep commercial sending gated on consent, verified SES events, DNS and an accepted current preview.
 - Mark unfinished legacy dispatches failed or uncertain without replay, fail their scheduled/sending campaigns, and stop the old API worker before the production migration.
@@ -31,7 +37,7 @@
 - Report Docker socket permission failures with an actionable group or sudo remediation and document the required VPS user setup.
 - Align the canonical VPS workflow with the existing projects: `/opt/zendix`, `sudo ./scripts/deploy.sh`, executable scripts and the `--first-run` alias.
 - Make `--skip-tls` a complete DNS-propagation workflow by validating HTTP and deferring the HTTPS check until certificate issuance.
-- Remove a broken legacy MailCraft Nginx symlink automatically before validating the renamed Zendix virtual host.
+- Remove a broken legacy Zendix Nginx symlink automatically before validating the renamed Zendix virtual host.
 - Remove a broken `zendix` enabled symlink before the first Nginx validation so the bootstrap can create its target.
 - Name the host Nginx virtual host exactly `zendix` without a file extension to match the VPS convention.
 - Add `DEPLOY.md` with Docker development, automated VPS deployment, Cloudflare/TLS, secrets, backups and post-deployment verification guidance; complete local and production environment examples.
@@ -41,7 +47,7 @@
 - Add VPS initialization/deployment scripts inspired by Habix: shared host Nginx, loopback upstream, retained secrets, backups before migration, health checks, TLS and optional owner bootstrap.
 - Add four isolated deployment-orchestration tests and expanded authentication/campaign-review isolation smoke coverage.
 
-- Add the reusable mailcraft-brevo-parity skill and align product instructions with the explicit Brevo interface/functionality cloning objective.
+- Add the reusable zendix-brevo-parity skill and align product instructions with the explicit Brevo interface/functionality cloning objective.
 - Specify professional registration/login without user-entered workspace IDs, including safe handling of existing multi-tenant identities.
 
 - Use app.zendix.site for initial public testing and production on one VPS deployment; reserve zendix.site for the commercial website and retain Docker hot reload on localhost.

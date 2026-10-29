@@ -1,13 +1,13 @@
 # Automated VPS deployment
 
-The operator runs these commands on the VPS. Repository preparation does not deploy the application or modify Cloudflare. This workflow adapts the deploy/build/backup/host-ingress pattern inspected in gohabix/scripts/deploy.sh to MailCraft's stack. It does not import Habix credentials, domains, databases or volumes.
+The operator runs these commands on the VPS. Repository preparation does not deploy the application or modify Cloudflare. This workflow adapts the deploy/build/backup/host-ingress pattern inspected in gohabix/scripts/deploy.sh to Zendix's stack. It does not import Habix credentials, domains, databases or volumes.
 
 ## Target and requirements
 
 - Console and initial real-world tests: https://app.zendix.site.
 - Cloudflare A record: app -> 178.104.132.74. Keep the root zendix.site reserved for the commercial website. Publish AAAA only with working IPv6.
 - Linux VPS with Bash, Docker Engine, Compose v2, OpenSSL, curl, tar and sudo/root access for host Nginx. Docker is a prerequisite; the scripts do not run remote Docker-install scripts.
-- TCP 80/443 reachable. An existing host Nginx may continue serving Habix and other applications. MailCraft uses a separate virtual host and loopback port 8092 by default. A VPS with another ingress implementation requires a manual integration review.
+- TCP 80/443 reachable. An existing host Nginx may continue serving Habix and other applications. Zendix uses a separate virtual host and loopback port 8092 by default. A VPS with another ingress implementation requires a manual integration review.
 - During first certificate issuance, DNS-only records simplify diagnosis. With Cloudflare proxying afterward, use Full (strict). Do not cache authentication, unsubscribe or browser-view routes.
 
 ## First deployment
@@ -61,8 +61,8 @@ Cloudflare A record has propagated, rerun `sudo ./scripts/deploy.sh` without
 Equivalent Compose commands for inspection:
 
 ```bash
-docker compose --env-file .env.production -p mailcraft-production -f compose.production.yaml -f compose.host-proxy.yaml ps
-docker compose --env-file .env.production -p mailcraft-production -f compose.production.yaml -f compose.host-proxy.yaml logs --tail 100 api web
+docker compose --env-file .env.production -p zendix-production -f compose.production.yaml -f compose.host-proxy.yaml ps
+docker compose --env-file .env.production -p zendix-production -f compose.production.yaml -f compose.host-proxy.yaml logs --tail 100 api web
 ```
 
 This override disables the Caddy gateway by default and binds only the static/proxy server to 127.0.0.1:8092. Do not enable the standalone gateway profile when host Nginx owns 80/443. Host Nginx overwrites forwarded client headers; the private container proxy preserves them for API rate limiting.

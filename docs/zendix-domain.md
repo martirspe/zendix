@@ -1,6 +1,6 @@
 # Zendix provisional application domain
 
-The provisional application origin is https://app.zendix.site for initial public testing and production on the same VPS deployment. The root zendix.site is reserved for the commercial website. MailCraft remains the product name until the final brand is chosen. Hostnames are runtime configuration, not compiled frontend constants.
+The provisional application origin is https://app.zendix.site for initial public testing and production on the same VPS deployment. The root zendix.site is reserved for the commercial website. Zendix is the product name. Hostnames are runtime configuration, not compiled frontend constants.
 
 ## Environments
 

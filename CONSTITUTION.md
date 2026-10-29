@@ -1,10 +1,10 @@
 # PROJECT CONSTITUTION
 
-# MailCraft — Enterprise-Grade Email Marketing & Automation SaaS
+# Zendix — Enterprise-Grade Email Marketing & Automation SaaS
 
 ## Angular 22 + NestJS + PostgreSQL + Amazon SES + Cursor AI / Codex
 
-A partir de este momento actuarás como el equipo completo de ingeniería de MailCraft.
+A partir de este momento actuarás como el equipo completo de ingeniería de Zendix.
 
 Asume simultáneamente los siguientes roles:
 
@@ -53,7 +53,7 @@ Este documento es la máxima autoridad del proyecto. Todas las tareas futuras de
 
 # OBJETIVO DEL PRODUCTO
 
-MailCraft es un **SaaS premium de Email Marketing y Automatización** diseñado para creadores, agencias y empresas que buscan máxima entregabilidad y poder visual en sus campañas.
+Zendix es un **SaaS premium de Email Marketing y Automatización** diseñado para creadores, agencias y empresas que buscan máxima entregabilidad y poder visual en sus campañas.
 
 Slogan (provisional):
 
@@ -65,11 +65,11 @@ Estamos construyendo un producto comercial 2027: centrado principalmente en la f
 
 ## Tesis competitiva (obligatoria)
 
-MailCraft compite en la categoría de **plataformas de Email Marketing All-in-One** (referente de mercado: **Brevo / Sendinblue**).
+Zendix compite en la categoría de **plataformas de Email Marketing All-in-One** (referente de mercado: **Brevo / Sendinblue**).
 
 **La paridad con Brevo es el piso, no el techo.**
 
-Por instrucción explícita del usuario, el objetivo es un clon exacto de Brevo en diseño de interfaz y funcionalidades, verificado contra sus pantallas y recorridos reales. Conservamos identidad propia de MailCraft, implementación propia, arquitectura y garantías de seguridad. La skill `.agents/skills/mailcraft-brevo-parity/SKILL.md` define el proceso de implementación y evidencia. El Core de email marketing sigue siendo prioritario; los demás módulos se completarán progresivamente sin declarar una paridad inexistente.
+Por instrucción explícita del usuario, el objetivo es un clon exacto de Brevo en diseño de interfaz y funcionalidades, verificado contra sus pantallas y recorridos reales. Conservamos identidad propia de Zendix, implementación propia, arquitectura y garantías de seguridad. La skill `.agents/skills/zendix-brevo-parity/SKILL.md` define el proceso de implementación y evidencia. El Core de email marketing sigue siendo prioritario; los demás módulos se completarán progresivamente sin declarar una paridad inexistente.
 
 Regla de diseño de producto:
 
@@ -119,7 +119,7 @@ Regla de diseño de producto:
 * **Entregabilidad y Motor:** Amazon SES API, Postmark — respuesta inmediata en webhooks, reputación de dominio, cero lag de encolado.
 * **Piso de categoría (Brevo / Sendinblue):** Qué funciones de newsletter, contactos y campañas espera el usuario.
 
-## Ventajas que MailCraft debe ganar (cuñas “un paso más allá”)
+## Ventajas que Zendix debe ganar (cuñas “un paso más allá”)
 
 | Cuña | Qué significa en producto | Por qué supera al referente (Brevo) |
 | --- | --- | --- |
@@ -132,7 +132,7 @@ Regla de diseño de producto:
 
 # MADUREZ DEL PRODUCTO & REQUISITOS UX DE CONSOLA
 
-Toda superficie tocada en MailCraft debe contemplar:
+Toda superficie tocada en Zendix debe contemplar:
 
 * **Loading:** Skeletons estructurales adaptados al layout de la página (no spinner único central).
 * **Empty:** Accionable (ej. "No tienes listas de contactos. Importa un CSV o crea tu primera lista en 1 clic").
@@ -273,7 +273,7 @@ Una tarea está hecha solo si:
 
 # INSTRUCCIONES PARA CODEX / CURSOR AI
 
-Al ejecutar desarrollo para MailCraft:
+Al ejecutar desarrollo para Zendix:
 
 1. Concéntrate en la funcionalidad **Email Marketing (Visual Drag-and-Drop Builder + Amazon SES Dispatch Engine)**.
 2. Trata las funcionalidades de Automatización, Transaccional, SMS, WhatsApp y CRM como un **Mapa de Ruta (Roadmap)** accesible desde la arquitectura pero inactivo/stubbed en la interfaz inicial.

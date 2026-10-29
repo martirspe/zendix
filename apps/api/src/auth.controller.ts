@@ -30,7 +30,7 @@ export class AuthController {
  @Get('config') config(){const production=process.env['NODE_ENV']==='production';return {production,registrationEnabled:registrationEnabled(),emailCodeEnabled:this.authEmail.enabled,googleAuthEnabled:this.google.enabled,googleClientId:this.google.enabled?this.google.clientId:'',emailVerificationRequired:emailVerificationRequired(),publicBaseUrl:publicApplicationOrigin(),defaults:production?undefined:{fromEmail:process.env['DEV_SENDER_EMAIL']??'',testRecipient:process.env['DEV_TEST_RECIPIENT']??''}};}
  @Post('register') async register(@Body(validation(RegistrationDto)) input:RegistrationDto,@Res({passthrough:true}) reply:FastifyReply){
   if(!registrationEnabled())throw new ForbiddenException('El registro público no está habilitado.');
-  if(emailVerificationRequired()&&!this.authEmail.enabled)throw new ServiceUnavailableException({code:'AUTH_EMAIL_NOT_CONFIGURED',message:'El registro requiere correo de verificación. Contacta con el administrador de MailCraft.'});
+  if(emailVerificationRequired()&&!this.authEmail.enabled)throw new ServiceUnavailableException({code:'AUTH_EMAIL_NOT_CONFIGURED',message:'El registro requiere correo de verificación. Contacta con el administrador de Zendix.'});
   const salt=randomBytes(16).toString('hex'),passwordHash=salt+':'+(await deriveKey(input.password,salt)).toString('hex');
   const tenant=await this.db.$transaction(async tx=>{
    return tx.tenant.create({data:{name:input.workspace?.trim() || 'Mi organización',users:{create:{email:normalizeEmail(input.email),firstName:input.firstName.trim(),lastName:input.lastName.trim(),termsAcceptedAt:new Date(),emailVerified:!emailVerificationRequired(),emailVerifiedAt:emailVerificationRequired()?null:new Date(),passwordHash,role:'owner'}}},include:{users:true}});
@@ -54,7 +54,7 @@ export class AuthController {
   if(!matches.length)throw new UnauthorizedException('El email o la contraseña no son correctos.');
   if(matches.length>1)return {requiresWorkspaceSelection:true,workspaces:matches.map(user=>({id:user.tenantId,name:user.tenant.name}))};
   const user=matches[0];if(!user)throw new UnauthorizedException();
-  if(!user.emailVerified){if(!this.authEmail.enabled)throw new ServiceUnavailableException({code:'AUTH_EMAIL_NOT_CONFIGURED',message:'Tu correo requiere verificación. Contacta con el administrador de MailCraft.'});const code=await this.issueCodes([user.tenantId],user.email,'verification');await this.authEmail.sendCode(user.email,'verification',code);return {verificationRequired:true,email:user.email};}
+  if(!user.emailVerified){if(!this.authEmail.enabled)throw new ServiceUnavailableException({code:'AUTH_EMAIL_NOT_CONFIGURED',message:'Tu correo requiere verificación. Contacta con el administrador de Zendix.'});const code=await this.issueCodes([user.tenantId],user.email,'verification');await this.authEmail.sendCode(user.email,'verification',code);return {verificationRequired:true,email:user.email};}
   const session=await this.sessions.create(user.id,user.tenantId);setCookie(reply,session.cookie);return session.body;
  }
  @Post('google') async loginWithGoogle(@Body(validation(GoogleLoginDto)) input:GoogleLoginDto,@Res({passthrough:true}) reply:FastifyReply){
@@ -71,7 +71,7 @@ export class AuthController {
    users=await this.db.user.findMany({where:{googleSub:profile.sub,...(input.workspaceId?{tenantId:input.workspaceId}:{})},take:21,orderBy:{id:'asc'},include:{tenant:{select:{name:true}}}});
   }else if(!users.length){
    if(input.workspaceId)throw new UnauthorizedException('Esta organización no está vinculada a tu cuenta de Google.');
-   if(!registrationEnabled())throw new ForbiddenException({code:'GOOGLE_SIGNUP_REQUIRED',message:'El registro público no está habilitado. Contacta con el administrador de MailCraft.'});
+   if(!registrationEnabled())throw new ForbiddenException({code:'GOOGLE_SIGNUP_REQUIRED',message:'El registro público no está habilitado. Contacta con el administrador de Zendix.'});
    if(input.acceptedTerms!==true)throw new ConflictException({code:'GOOGLE_SIGNUP_REQUIRED',message:'Crea tu cuenta y acepta los términos para continuar con Google.'});
    const salt=randomBytes(16).toString('hex'),passwordHash=salt+':'+randomBytes(64).toString('hex'),now=new Date();
    const tenant=await this.db.tenant.create({data:{name:'Mi organización',users:{create:{email:profile.email,googleSub:profile.sub,firstName:profile.firstName,lastName:profile.lastName,termsAcceptedAt:now,emailVerified:true,emailVerifiedAt:now,passwordHash,role:'owner'}}},include:{users:true}});
@@ -80,7 +80,7 @@ export class AuthController {
   if(!users.length)throw new UnauthorizedException('Esta organización no está vinculada a tu cuenta de Google.');
   if(users.length>1)return {requiresWorkspaceSelection:true,workspaces:users.map(user=>({id:user.tenantId,name:user.tenant.name}))};
   const user=users[0];if(!user)throw new UnauthorizedException();
-  if(user.email!==profile.email)throw new ConflictException('El correo de esta cuenta de Google cambió. Contacta con el administrador de MailCraft.');
+  if(user.email!==profile.email)throw new ConflictException('El correo de esta cuenta de Google cambió. Contacta con el administrador de Zendix.');
   if(!user.emailVerified)await this.db.user.update({where:{tenantId_id:{tenantId:user.tenantId,id:user.id}},data:{emailVerified:true,emailVerifiedAt:new Date()}});
   const session=await this.sessions.create(user.id,user.tenantId);setCookie(reply,session.cookie);return session.body;
  }

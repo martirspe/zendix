@@ -32,8 +32,8 @@ export class CampaignSendService implements OnModuleInit,OnModuleDestroy {
  onModuleInit(){
   const url=new URL(process.env['REDIS_URL']??'redis://redis:6379');
   const connection={host:url.hostname,port:Number(url.port||6379),password:url.password||undefined,maxRetriesPerRequest:null};
-  this.queue=new Queue<DispatchJob>('mailcraft-campaign-dispatch',{connection});
-  this.worker=new Worker<DispatchJob>('mailcraft-campaign-dispatch',job=>this.process(job),{connection,concurrency:4,lockDuration:120000});
+  this.queue=new Queue<DispatchJob>('zendix-campaign-dispatch',{connection});
+  this.worker=new Worker<DispatchJob>('zendix-campaign-dispatch',job=>this.process(job),{connection,concurrency:4,lockDuration:120000});
   this.queue.on('error',()=>undefined);this.worker.on('error',()=>undefined);this.worker.on('failed',()=>undefined);
   this.timer=setInterval(()=>{void this.reconcile().catch(()=>undefined);},5000);this.timer.unref();void this.reconcile().catch(()=>undefined);
  }

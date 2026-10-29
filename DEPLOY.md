@@ -1,4 +1,4 @@
-# MailCraft deployment
+# Zendix deployment
 
 This repository is deployed as a Docker Compose application. The supported
 production target is a Linux VPS with Docker Engine, Compose v2, Bash, OpenSSL,
@@ -93,7 +93,7 @@ bash scripts/deploy.sh --skip-nginx           # Docker only
 bash scripts/deploy.sh --skip-tls             # Nginx now, certificate later
 ```
 
-`--skip-host` remains an alias for `--skip-nginx`. MailCraft always creates a
+`--skip-host` remains an alias for `--skip-nginx`. Zendix always creates a
 pre-migration backup; there is no backup-bypass flag in the production workflow.
 With `--skip-tls`, the script validates HTTP only. After the Cloudflare A
 record propagates, rerun without `--skip-tls` to request the certificate.
@@ -144,7 +144,7 @@ account.
 Run these checks from the VPS:
 
 ```bash
-docker compose --env-file .env.production -p mailcraft-production \
+docker compose --env-file .env.production -p zendix-production \
   -f compose.production.yaml -f compose.host-proxy.yaml ps
 curl --fail https://app.zendix.site/api/health
 ```

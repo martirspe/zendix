@@ -1,4 +1,4 @@
-# MailCraft engineering instructions
+# Zendix engineering instructions
 
 Read CONSTITUTION.md before changing product code. It is the product's governing specification.
 
@@ -12,4 +12,4 @@ Read CONSTITUTION.md before changing product code. It is the product's governing
 - Use CSS/SCSS design tokens. No Tailwind or Bootstrap. Use @lucide/angular through ds-icon.
 - Update CHANGELOG.md under [Unreleased] and run affected builds and tests.
 
-For MailCraft interface/functionality parity and professional account-access work, apply `.agents/skills/mailcraft-brevo-parity/SKILL.md`. The current user directive targets exact Brevo design and functional parity, with evidence and the security invariants above preserved.
+For Zendix interface/functionality parity and professional account-access work, apply `.agents/skills/zendix-brevo-parity/SKILL.md`. The current user directive targets exact Brevo design and functional parity, with evidence and the security invariants above preserved.

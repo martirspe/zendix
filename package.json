@@ -1,5 +1,5 @@
 {
-  "name": "mailcraft",
+  "name": "zendix",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "docker compose up --build",
-    "build": "npm run build --workspace @mailcraft/web && npm run build --workspace @mailcraft/api",
+    "build": "npm run build --workspace @zendix/web && npm run build --workspace @zendix/api",
     "test": "tsx --tsconfig apps/api/tsconfig.json --test packages/email/src/*.test.ts packages/contacts/src/*.test.ts apps/api/src/*.test.ts",
     "db:validate": "prisma validate --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma",

@@ -1,13 +1,13 @@
 ---
-name: mailcraft-brevo-parity
-description: Implement and verify MailCraft against Brevo for exact interface and functional parity, including professional onboarding and authentication. Use for MailCraft parity work, not unrelated applications.
+name: zendix-brevo-parity
+description: Implement and verify Zendix against Brevo for exact interface and functional parity, including professional onboarding and authentication. Use for Zendix parity work, not unrelated applications.
 ---
 
-# MailCraft: Brevo interface and functional parity
+# Zendix: Brevo interface and functional parity
 
 ## Product directive
 
-Develop MailCraft as an exact clone of Brevo in interface design and functionality, using the actual reference screens and workflows as acceptance criteria. A vaguely similar dashboard or a list of decorative controls does not satisfy this objective. Preserve MailCraft's own product identity, domains and provider integrations; do not present MailCraft as the official Brevo service. Implement original application code using the existing architecture.
+Develop Zendix as an exact clone of Brevo in interface design and functionality, using the actual reference screens and workflows as acceptance criteria. A vaguely similar dashboard or a list of decorative controls does not satisfy this objective. Preserve Zendix's own product identity, domains and provider integrations; do not present Zendix as the official Brevo service. Implement original application code using the existing architecture.
 
 Read the repository's AGENTS.md and CONSTITUTION.md first. The user's explicit parity instruction supersedes the older constitution prohibition against cloning. Preserve all tenant, consent, suppression and delivery safeguards. The full Brevo platform is the eventual target; deliver the email-marketing core first, then expand the recorded parity matrix to other modules. Do not silently reduce the target to the current prototype.
 

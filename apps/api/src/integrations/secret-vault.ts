@@ -23,13 +23,13 @@ export function unseal(value: string, key: Buffer, context: string): unknown {
 
 @Injectable()
 export class SecretVault {
-  private readonly directory = process.env['MAILCRAFT_KEYS_PATH'] ?? '/var/lib/mailcraft/keys';
+  private readonly directory = process.env['ZENDIX_KEYS_PATH'] ?? '/var/lib/zendix/keys';
   private keyPromise?: Promise<Buffer>;
   constructor(@Inject(Database) private readonly db: Database) {}
 
   masterKey(): Promise<Buffer> {
     return this.keyPromise ??= (async () => {
-      const external=process.env['MAILCRAFT_MASTER_KEY_FILE'];
+      const external=process.env['ZENDIX_MASTER_KEY_FILE'];
       if(external){const key=Buffer.from((await readFile(external,'utf8')).trim(),'base64');if(key.length!==32)throw new Error('Invalid master key');return key;}
       if(process.env['NODE_ENV']==='production')throw new Error('A persistent master key is required');
       await mkdir(this.directory, {recursive: true, mode: 0o700});

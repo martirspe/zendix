@@ -5,7 +5,7 @@ import { ownershipRecord } from './integrations/domain-ownership';
 import { SecretVault } from './integrations/secret-vault';
 import { SesEmail, SesSettings } from './integrations/ses-email';
 import { Database } from './database';
-import { TenantGuard, TenantRequest } from './tenant.guard';
+import { OwnerGuard, TenantGuard, TenantRequest } from './tenant.guard';
 
 class CreateDomainDto { @IsFQDN({require_tld:true}) hostname!:string; }
 @Controller('domains') @UseGuards(TenantGuard)
@@ -13,6 +13,14 @@ export class DomainsController {
  constructor(@Inject(Database) private readonly db:Database,@Inject(SecretVault) private readonly vault:SecretVault,@Inject(SesEmail) private readonly ses:SesEmail){}
  @Get() async list(@Req() request:TenantRequest){return (await this.db.domain.findMany({where:{tenantId:request.tenantId},take:100})).map(domain=>({...domain,ownershipRecord:ownershipRecord(request.tenantId,domain.hostname)}));}
  @Post() async create(@Req() request:TenantRequest,@Body(new ValidationPipe({expectedType:CreateDomainDto,whitelist:true,forbidNonWhitelisted:true})) input:CreateDomainDto){const hostname=input.hostname.toLowerCase().replace(/\.$/,'');const domain=await this.db.domain.upsert({where:{tenantId_hostname:{tenantId:request.tenantId,hostname}},create:{tenantId:request.tenantId,hostname},update:{}});return {...domain,ownershipRecord:ownershipRecord(request.tenantId,hostname)};}
+ @Post(':id/provision') @UseGuards(OwnerGuard) async provision(@Req() request:TenantRequest,@Param('id') id:string){
+  const domain=await this.db.domain.findFirst({where:{tenantId:request.tenantId,id}});if(!domain)throw new NotFoundException();
+  const proof=ownershipRecord(request.tenantId,domain.hostname),resolver=new Resolver({timeout:3000,tries:1});let values:string[]=[];
+  try{values=(await resolver.resolveTxt(proof.name)).map(parts=>parts.join(''));}catch{}
+  if(!values.includes(proof.value))throw new ConflictException('Publica y verifica primero el TXT de propiedad de Zendix.');
+  const identity=await this.ses.provisionIdentity(request.tenantId,domain.hostname);
+  return {provisioned:true,dkimTokens:identity.DkimAttributes?.Tokens??[],mailFromDomain:identity.MailFromAttributes?.MailFromDomain??null};
+ }
  @Post(':id/check') async check(@Req() request:TenantRequest,@Param('id') id:string){
   const domain=await this.db.domain.findFirst({where:{tenantId:request.tenantId,id}});if(!domain)throw new NotFoundException();
   const settings=await this.vault.load<SesSettings>(request.tenantId,'ses');

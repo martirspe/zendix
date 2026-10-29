@@ -57,7 +57,7 @@ export AWS_CREDENTIALS_PATH="$aws_credentials_path" AWS_REGION="$(setting AWS_RE
 # The host-proxy override bind-mounts this file into the unprivileged Nginx
 # container; ensure its mode permits the container worker to read it.
 chmod 644 deploy/nginx.proxy.conf
-compose=(docker compose --env-file .env.production -p mailcraft-production -f compose.production.yaml -f compose.host-proxy.yaml)
+compose=(docker compose --env-file .env.production -p zendix-production -f compose.production.yaml -f compose.host-proxy.yaml)
 "${compose[@]}" config --quiet
 if [[ "$mode" == check ]]; then echo 'Configuration and Docker preflight passed. No deployment or host changes performed.'; exit 0; fi
 if [[ "$do_pull" == true ]]; then
@@ -71,11 +71,11 @@ fi
 trap 'echo "Deployment stopped. Existing data and secrets were retained; inspect Docker status and the failed step before retrying." >&2' ERR
 for service in migrate api web; do COMPOSE_PARALLEL_LIMIT=1 "${compose[@]}" build "$service"; done
 "${compose[@]}" run --rm -T --no-deps migrate sh -c 'npm test && npm run test:deploy'
-"${compose[@]}" run --rm -T --no-deps --entrypoint node api -e "for(const name of ['JWT_SECRET_FILE','MAILCRAFT_MASTER_KEY_FILE','DATABASE_PASSWORD_FILE','REDIS_PASSWORD_FILE'])require('node:fs').accessSync(process.env[name],require('node:fs').constants.R_OK);console.log('Application secret mounts are readable.');"
+"${compose[@]}" run --rm -T --no-deps --entrypoint node api -e "for(const name of ['JWT_SECRET_FILE','ZENDIX_MASTER_KEY_FILE','DATABASE_PASSWORD_FILE','REDIS_PASSWORD_FILE'])require('node:fs').accessSync(process.env[name],require('node:fs').constants.R_OK);console.log('Application secret mounts are readable.');"
 "${compose[@]}" up -d --wait --wait-timeout 120 postgres redis
 backup_directory="backups/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -m 700 -p "$backup_directory"
-"${compose[@]}" exec -T postgres pg_dump -U mailcraft -Fc mailcraft > "$backup_directory/database.dump"
+"${compose[@]}" exec -T postgres pg_dump -U zendix -Fc zendix > "$backup_directory/database.dump"
 cp .env.production "$backup_directory/configuration.env"
 tar -czf "$backup_directory/secrets.tar.gz" deploy/secrets/jwt_secret deploy/secrets/vault_key deploy/secrets/database_password deploy/secrets/redis_password deploy/secrets/aws_credentials
 [[ -s "$backup_directory/database.dump" && -s "$backup_directory/secrets.tar.gz" ]] || exit 1

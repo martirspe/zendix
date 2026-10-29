@@ -1,6 +1,6 @@
 FROM node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 WORKDIR /workspace
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* && mkdir -p /var/lib/mailcraft/keys && chown node:node /workspace /var/lib/mailcraft/keys
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* && mkdir -p /var/lib/zendix/keys && chown node:node /workspace /var/lib/zendix/keys
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node apps/web/package.json apps/web/package.json
 COPY --chown=node:node apps/api/package.json apps/api/package.json

@@ -9,7 +9,7 @@ docker compose exec api npm run build
 docker compose exec api npm test
 docker compose exec api npm run db:validate
 docker compose exec api npm run test:api
-docker compose exec -e DATABASE_URL=postgresql://mailcraft:development_only@postgres:5432/mailcraft_email_api_smoke api npm run test:email-api
+docker compose exec -e DATABASE_URL=postgresql://zendix:development_only@postgres:5432/zendix_email_api_smoke api npm run test:email-api
 ```
 
 The Email API smoke database must already exist with all migrations applied. Its transport and DNS responses are simulated; it exercises test preview, audience confirmation, queued dispatch, webhook event correlation/deduplication, bounce and complaint suppression, and unsubscribe. This command never sends external mail. Temporary test data is removed after the checks. The API smoke uses temporary development tenants and requires local registration to be enabled.

@@ -9,13 +9,13 @@ const {TestEmailService}=require('../apps/api/dist/apps/api/src/integrations/tes
 const {CampaignReviewController}=require('../apps/api/dist/apps/api/src/campaign-review.controller.js');
 const {CampaignSendService}=require('../apps/api/dist/apps/api/src/campaign-send.service.js');
 const {ProviderWebhookService}=require('../apps/api/dist/apps/api/src/integrations/provider-webhook.service.js');
-if(!process.env.DATABASE_URL?.endsWith('/mailcraft_email_api_smoke'))throw new Error('Use the dedicated mailcraft_email_api_smoke database');
+if(!process.env.DATABASE_URL?.endsWith('/zendix_email_api_smoke'))throw new Error('Use the dedicated zendix_email_api_smoke database');
 const db=new PrismaClient(),tenants=[];
 try{
  const tenant=await db.tenant.create({data:{name:'SES verification '+randomUUID()}});tenants.push(tenant.id);
  const other=await db.tenant.create({data:{name:'Other SES verification '+randomUUID()}});tenants.push(other.id);
  const vault=new SecretVault(db);
- const settings={region:'us-east-1',configurationSet:'mailcraft-events',fromEmail:'sender@example.invalid',fromName:'MailCraft',testRecipient:'recipient@example.invalid',publicBaseUrl:'https://console.example.invalid'};
+ const settings={region:'us-east-1',configurationSet:'zendix-events',fromEmail:'sender@example.invalid',fromName:'Zendix',testRecipient:'recipient@example.invalid',publicBaseUrl:'https://console.example.invalid'};
  await vault.store(tenant.id,'ses',settings);assert.equal(await vault.load(other.id,'ses'),null);
  const credential=await db.integrationCredential.findUnique({where:{tenantId_kind:{tenantId:tenant.id,kind:'ses'}}});assert.ok(credential&&!credential.encryptedPayload.includes(settings.fromEmail));
  const consent={consent:{source:'operator_confirmation',recordedAt:new Date().toISOString(),userId:'smoke'}};
@@ -44,12 +44,12 @@ try{
  await sender.process({data:{tenantId:tenant.id,dispatchId:dispatch.id}});
  const accepted=await db.emailDispatch.findUnique({where:{tenantId_id:{tenantId:tenant.id,id:dispatch.id}}});assert.equal(accepted.status,'accepted');
  const events=new ProviderWebhookService(db);events.enqueuePending=async()=>undefined;
- const event={eventType:'Bounce',mail:{messageId:accepted.providerId,timestamp:new Date().toISOString(),source:settings.fromEmail,destination:[contact.email],tags:{mailcraft_tenant:[tenant.id],mailcraft_dispatch:[dispatch.id]}},bounce:{bounceType:'Permanent'}};
+ const event={eventType:'Bounce',mail:{messageId:accepted.providerId,timestamp:new Date().toISOString(),source:settings.fromEmail,destination:[contact.email],tags:{zendix_tenant:[tenant.id],zendix_dispatch:[dispatch.id]}},bounce:{bounceType:'Permanent'}};
  await events.receiveSes(randomUUID(),event);
  const stored=await db.providerWebhookEvent.findFirst({where:{tenantId:tenant.id,provider:'ses'}});await events.process({data:{tenantId:tenant.id,eventId:stored.id},attemptsMade:0});
  assert.equal((await db.contact.findUnique({where:{tenantId_id:{tenantId:tenant.id,id:contact.id}}})).status,'bounced');
  assert.equal((await db.emailDispatch.findUnique({where:{tenantId_id:{tenantId:tenant.id,id:dispatch.id}}})).status,'bounced');
- await assert.rejects(events.receiveSes(randomUUID(),{...event,mail:{...event.mail,tags:{mailcraft_tenant:[other.id],mailcraft_dispatch:[dispatch.id]}}}));
+ await assert.rejects(events.receiveSes(randomUUID(),{...event,mail:{...event.mail,tags:{zendix_tenant:[other.id],zendix_dispatch:[dispatch.id]}}}));
  console.log('PASS: tenant isolation, SES dispatch gating, durable acceptance, uncertain result protection and hard-bounce suppression. No external email sent.');
 }finally{
  for(const tenantId of tenants){await db.emailEvent.deleteMany({where:{tenantId}});await db.providerWebhookEvent.deleteMany({where:{tenantId}});await db.emailDispatch.deleteMany({where:{tenantId}});await db.emailProviderAccount.deleteMany({where:{tenantId}});await db.testEmail.deleteMany({where:{tenantId}});await db.campaignAudience.deleteMany({where:{tenantId}});await db.contactList.deleteMany({where:{tenantId}});await db.integrationCredential.deleteMany({where:{tenantId}});await db.domain.deleteMany({where:{tenantId}});await db.campaign.deleteMany({where:{tenantId}});await db.contact.deleteMany({where:{tenantId}});await db.list.deleteMany({where:{tenantId}});await db.tenant.delete({where:{id:tenantId}});}

@@ -1,5 +1,5 @@
 {
-  "name": "@mailcraft/api",
+  "name": "@zendix/api",
   "private": true,
   "scripts": {
     "dev": "tsx watch src/main.ts",

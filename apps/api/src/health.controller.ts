@@ -7,7 +7,7 @@ export class DeliveryQueue implements OnModuleDestroy {
   readonly queue: Queue;
   constructor() {
     const url = new URL(process.env['REDIS_URL'] ?? 'redis://redis:6379');
-    this.queue = new Queue('mailcraft-delivery', {connection: {host: url.hostname, port: Number(url.port || 6379), password: url.password || undefined, maxRetriesPerRequest: 1, connectTimeout: 3000}});
+    this.queue = new Queue('zendix-delivery', {connection: {host: url.hostname, port: Number(url.port || 6379), password: url.password || undefined, maxRetriesPerRequest: 1, connectTimeout: 3000}});
     this.queue.on('error', () => undefined);
   }
   async onModuleDestroy(): Promise<void> { await this.queue.close(); }

@@ -93,7 +93,7 @@ try {
  assert.equal((await call('/domains','POST',{hostname:'localhost'},a.accessToken)).status,400);
  const domain=await call('/domains','POST',{hostname:'example.com'},a.accessToken);
  assert.equal(domain.status,201);
- assert.ok(domain.data.ownershipRecord.value.startsWith('mailcraft-verification='));
+ assert.ok(domain.data.ownershipRecord.value.startsWith('zendix-verification='));
  assert.equal((await call('/domains/'+domain.data.id+'/check','POST',{},b.accessToken)).status,404);
  assert.equal((await call('/domains','GET',undefined,b.accessToken)).data.length,0);
 

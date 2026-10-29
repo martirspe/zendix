@@ -7,14 +7,9 @@ variable "environment" {
   default = "production"
 }
 
-variable "sender_domain" {
+variable "platform_domain" {
   type        = string
-  description = "Verified SES sender domain, e.g. reclamofacil.com"
-}
-
-variable "mail_from_subdomain" {
-  type    = string
-  default = "bounce"
+  description = "Zendix-owned domain used for account access email, e.g. zendix.site"
 }
 
 variable "cloudflare_zone_id" {
@@ -32,8 +27,10 @@ variable "app_public_url" {
   description = "Public HTTPS origin, e.g. https://app.zendix.site"
 }
 
-variable "campaign_sender_email" {
-  type = string
+variable "enable_webhook_subscription" {
+  type        = bool
+  default     = false
+  description = "Create the SES SNS HTTPS subscription only after the public API is healthy."
 }
 
 variable "account_sender_email" {
@@ -42,7 +39,7 @@ variable "account_sender_email" {
 
 variable "media_domain" {
   type        = string
-  description = "Dedicated hostname for public campaign assets, e.g. media.reclamofacil.com"
+  description = "Dedicated Zendix hostname for public campaign assets, e.g. media.zendix.site"
 }
 
 variable "s3_force_destroy" {
@@ -51,29 +48,6 @@ variable "s3_force_destroy" {
   description = "Allow Terraform to delete a non-empty asset bucket. Keep false in production."
 }
 
-variable "manage_account_email_identity" {
-  type        = bool
-  default     = false
-  description = "Manage a separate verified SES identity for account access in this region."
-}
-
-variable "dmarc_policy" {
-  type    = string
-  default = "none"
-  validation {
-    condition     = contains(["none", "quarantine", "reject"], var.dmarc_policy)
-    error_message = "DMARC policy must be none, quarantine, or reject."
-  }
-}
-
-variable "domain_ownership_token" {
-  type        = string
-  sensitive   = true
-  description = "Per-tenant MailCraft domain ownership verification token created by the app."
-}
-
 locals {
-  mail_from_name = "${var.mail_from_subdomain}.${var.sender_domain}"
-  media_label    = trimsuffix(trimprefix(var.media_domain, "media."), ".${var.sender_domain}")
-  dmarc_value    = "v=DMARC1; p=${var.dmarc_policy}; rua=mailto:dmarc@${var.sender_domain}; adkim=s; aspf=s;"
+  account_sender_domain = split("@", var.account_sender_email)[1]
 }

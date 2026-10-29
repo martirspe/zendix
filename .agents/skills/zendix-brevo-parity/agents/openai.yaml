@@ -1,0 +1,6 @@
+interface:
+  display_name: "Zendix · Paridad con Brevo"
+  short_description: "Replica diseño y funciones de Brevo en Zendix"
+  default_prompt: "Usa $zendix-brevo-parity para implementar el siguiente recorrido de Zendix con paridad de diseño y funcionalidad respecto a Brevo, empezando por un acceso profesional sin identificadores técnicos."
+policy:
+  allow_implicit_invocation: true

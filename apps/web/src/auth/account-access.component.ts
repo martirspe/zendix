@@ -76,7 +76,7 @@ export class AccountAccessComponent implements OnInit,AfterViewInit {
    if(data.passwordReset){this.mode.set('login');this.phase.set(this.emailCodeEnabled()?'email':'password');this.code.set('');this.password.set('');this.sentMessage.set('Tu contraseña se actualizó. Ya puedes iniciar sesión.');return;}
    if(!data.accessToken||!data.tenantId||!data.userRole){this.error.set('La respuesta de acceso está incompleta. Vuelve a intentarlo.');return;}
    this.workspaces.set([]);this.authenticated.emit({accessToken:data.accessToken,tenantId:data.tenantId,workspaceName:data.workspaceName??'Mi organización',userRole:data.userRole,user:data.user??{email,firstName:this.firstName(),lastName:this.lastName()}});
-  }catch{this.error.set('No se pudo conectar con MailCraft. Revisa tu conexión e inténtalo de nuevo.');}
+  }catch{this.error.set('No se pudo conectar con Zendix. Revisa tu conexión e inténtalo de nuevo.');}
   finally{this.loading.set(false);}
  }
  private async send(path:string,body:unknown):Promise<AuthResponse>{const response=await fetch('/api/auth/'+path,{method:'POST',signal:AbortSignal.timeout(30000),headers:{'content-type':'application/json'},body:JSON.stringify(body)});const data=await response.json() as AuthResponse;if(!response.ok){const message=Array.isArray(data.message)?data.message.join(' '):data.message;throw new Error(response.status===429?'Demasiados intentos. Espera un momento antes de volver a probar.':response.status===401?'El correo, la contraseña o el código no son correctos.':response.status===400?'Revisa los campos. Comprueba que tu contraseña tenga al menos 12 caracteres.':message??'No se pudo completar el acceso. Intenta nuevamente.');}return data;}

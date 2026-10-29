@@ -9,7 +9,7 @@ const eventTypes=new Set(['Send','Delivery','Bounce','Complaint','Reject','Open'
 export function normalizeSesEvent(value:unknown):{tenantId:string;dispatchId:string;event:SesEvent;occurredAt:Date}{
   if(!value||typeof value!=='object'||Array.isArray(value))throw new ConflictException('Evento SES inválido.');
   const event=value as SesEvent;
-  const tenantId=event.mail?.tags?.['mailcraft_tenant']?.[0],dispatchId=event.mail?.tags?.['mailcraft_dispatch']?.[0];
+  const tenantId=event.mail?.tags?.['zendix_tenant']?.[0],dispatchId=event.mail?.tags?.['zendix_dispatch']?.[0];
   const eventTimestamp=event.eventType==='Bounce'?event.bounce?.timestamp:event.eventType==='Complaint'?event.complaint?.timestamp:event.eventType==='Delivery'?event.delivery?.timestamp:event.eventType==='Open'?event.open?.timestamp:event.eventType==='Click'?event.click?.timestamp:undefined;
   const occurredAt=new Date(eventTimestamp??event.mail?.timestamp??'');
   if(!eventTypes.has(event.eventType)||!event.mail?.messageId||event.mail.messageId.length>256||!tenantId||!dispatchId||!/^[0-9a-f-]{36}$/i.test(tenantId)||!/^[0-9a-f-]{36}$/i.test(dispatchId)||!Number.isFinite(occurredAt.getTime()))throw new ConflictException('Campos del evento SES inválidos.');
@@ -25,8 +25,8 @@ export class ProviderWebhookService implements OnModuleInit,OnModuleDestroy {
  onModuleInit(){
   const url=new URL(process.env['REDIS_URL']??'redis://redis:6379');
   const connection={host:url.hostname,port:Number(url.port||6379),password:url.password||undefined,maxRetriesPerRequest:null};
-  this.queue=new Queue<ProviderEventJob>('mailcraft-provider-events',{connection});
-  this.worker=new Worker<ProviderEventJob>('mailcraft-provider-events',job=>this.process(job),{connection,concurrency:8,lockDuration:120000});
+  this.queue=new Queue<ProviderEventJob>('zendix-provider-events',{connection});
+  this.worker=new Worker<ProviderEventJob>('zendix-provider-events',job=>this.process(job),{connection,concurrency:8,lockDuration:120000});
   this.worker.on('error',()=>undefined);this.worker.on('failed',job=>{if(job&&job.attemptsMade>=10)void this.db.providerWebhookEvent.updateMany({where:{tenantId:job.data.tenantId,id:job.data.eventId,status:'received'},data:{status:'failed'}}).catch(()=>undefined);});this.queue.on('error',()=>undefined);
   this.timer=setInterval(()=>{void this.reconcile().catch(()=>undefined);},5000);this.timer.unref();void this.reconcile().catch(()=>undefined);
  }

@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 
 function fixture(){
- const root=mkdtempSync(join(tmpdir(),'mailcraft-deploy-'));
+ const root=mkdtempSync(join(tmpdir(),'zendix-deploy-'));
  for(const folder of ['scripts','bin','deploy','deploy/secrets'])mkdirSync(join(root,folder),{recursive:true});
  writeFileSync(join(root,'deploy/nginx.proxy.conf'),'events {}\n');
  for(const script of ['deploy.sh','init-production.sh','bootstrap-host.sh'])copyFileSync('scripts/'+script,join(root,'scripts',script));

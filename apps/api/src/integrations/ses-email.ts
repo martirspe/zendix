@@ -1,15 +1,21 @@
 import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
-import { GetAccountCommand, GetConfigurationSetEventDestinationsCommand, GetEmailIdentityCommand, SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { CreateEmailIdentityCommand, GetAccountCommand, GetConfigurationSetEventDestinationsCommand, GetEmailIdentityCommand, PutEmailIdentityMailFromAttributesCommand, SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { ListSubscriptionsByTopicCommand, SNSClient } from '@aws-sdk/client-sns';
 import { Database } from '../database';
 import { SecretVault } from './secret-vault';
 
 export interface SesSettings { region:string; configurationSet:string; fromEmail:string; fromName:string; testRecipient:string; publicBaseUrl:string; }
+export interface SenderSettings { fromEmail:string; fromName:string; testRecipient:string; }
 export interface SesMessage { recipient:string; fromEmail:string; fromName:string; subject:string; html:string; text:string; unsubscribeUrl:string; dispatchId:string; }
 
 @Injectable()
 export class SesEmail {
   constructor(@Inject(SecretVault) private readonly vault:SecretVault,@Inject(Database) private readonly db:Database){}
+  platformSettings():Pick<SesSettings,'region'|'configurationSet'|'publicBaseUrl'>{
+    const region=process.env['AWS_REGION']?.trim()??'',configurationSet=process.env['SES_CONFIGURATION_SET']?.trim()??'',publicBaseUrl=process.env['APP_PUBLIC_URL']?.replace(/\/$/,'')??'';
+    if(!/^[a-z]{2}(?:-[a-z]+)+-\d$/.test(region)||!/^[A-Za-z0-9_-]{1,64}$/.test(configurationSet)||!/^https?:\/\//.test(publicBaseUrl))throw new BadRequestException({code:'SES_PLATFORM_NOT_CONFIGURED',message:'La infraestructura compartida de Amazon SES aún no está configurada.'});
+    return {region,configurationSet,publicBaseUrl};
+  }
   async settings(tenantId:string):Promise<SesSettings>{
     const settings=await this.vault.load<SesSettings>(tenantId,'ses');
     if(!settings)throw new BadRequestException({code:'SES_NOT_CONFIGURED',message:'Conecta Amazon SES desde Conexiones.'});
@@ -48,7 +54,8 @@ export class SesEmail {
       throw new BadRequestException({code,message:'Verifica la identidad, Easy DKIM, el acceso de producción, la configuración de eventos y la suscripción HTTPS de SNS en AWS.'});
     }finally{ses.destroy();sns.destroy();}
   }
-  async connect(tenantId:string,settings:SesSettings){
+  async connect(tenantId:string,sender:SenderSettings){
+    const settings:SesSettings={...this.platformSettings(),...sender};
     const existing=await this.db.emailProviderAccount.findUnique({where:{tenantId_provider:{tenantId,provider:'ses'}}});
     if(existing&&existing.accountHandle!==settings.fromEmail)throw new ConflictException({code:'SES_SENDER_IMMUTABLE',message:'El remitente tiene eventos asociados. Configura una cuenta nueva antes de cambiarlo.'});
     const owner=await this.db.emailProviderAccount.findUnique({where:{provider_accountHandle:{provider:'ses',accountHandle:settings.fromEmail}}});
@@ -59,17 +66,31 @@ export class SesEmail {
     return {connected:true,fromEmail:settings.fromEmail,testRecipient:settings.testRecipient,webhookVerified:true};
   }
   async identity(tenantId:string,domain:string){
-    const settings=await this.settings(tenantId),client=new SESv2Client({region:settings.region,maxAttempts:1});
+    await this.db.domain.findFirstOrThrow({where:{tenantId,hostname:domain}});
+    const {region}=this.platformSettings(),client=new SESv2Client({region,maxAttempts:1});
     try{return await client.send(new GetEmailIdentityCommand({EmailIdentity:domain}));}
     finally{client.destroy();}
   }
+  async provisionIdentity(tenantId:string,domain:string){
+    await this.db.domain.findFirstOrThrow({where:{tenantId,hostname:domain}});
+    const otherOwner=await this.db.domain.findFirst({where:{hostname:domain,NOT:{tenantId}},select:{id:true}});
+    if(otherOwner)throw new ConflictException({code:'SENDER_DOMAIN_IN_USE',message:'Este dominio ya pertenece a otro espacio de trabajo.'});
+    const {region}=this.platformSettings(),client=new SESv2Client({region,maxAttempts:1});
+    try{
+      let exists=true;
+      try{await client.send(new GetEmailIdentityCommand({EmailIdentity:domain}));}catch(error:unknown){if(error instanceof Error&&error.name==='NotFoundException')exists=false;else throw error;}
+      if(!exists)await client.send(new CreateEmailIdentityCommand({EmailIdentity:domain,DkimSigningAttributes:{NextSigningKeyLength:'RSA_2048_BIT'}}));
+      await client.send(new PutEmailIdentityMailFromAttributesCommand({EmailIdentity:domain,MailFromDomain:'bounce.'+domain,BehaviorOnMxFailure:'REJECT_MESSAGE'}));
+      return await client.send(new GetEmailIdentityCommand({EmailIdentity:domain}));
+    }finally{client.destroy();}
+  }
   async send(tenantId:string,message:SesMessage){
     const settings=await this.settings(tenantId),client=new SESv2Client({region:settings.region,maxAttempts:1});
-    const headers=[{Name:'List-Unsubscribe',Value:'<'+message.unsubscribeUrl+'>'},{Name:'X-MailCraft-Dispatch-Id',Value:message.dispatchId}];
+    const headers=[{Name:'List-Unsubscribe',Value:'<'+message.unsubscribeUrl+'>'},{Name:'X-Zendix-Dispatch-Id',Value:message.dispatchId}];
     if(settings.publicBaseUrl.startsWith('https://'))headers.push({Name:'List-Unsubscribe-Post',Value:'List-Unsubscribe=One-Click'});
     try{
       const displayName='=?UTF-8?B?'+Buffer.from(settings.fromName).toString('base64')+'?=';
-      const response=await client.send(new SendEmailCommand({FromEmailAddress:`${displayName} <${message.fromEmail}>`,Destination:{ToAddresses:[message.recipient]},ConfigurationSetName:settings.configurationSet,EmailTags:[{Name:'mailcraft_tenant',Value:tenantId},{Name:'mailcraft_dispatch',Value:message.dispatchId}],Content:{Simple:{Subject:{Data:message.subject,Charset:'UTF-8'},Body:{Text:{Data:message.text,Charset:'UTF-8'},Html:{Data:message.html,Charset:'UTF-8'}},Headers:headers}}}));
+      const response=await client.send(new SendEmailCommand({FromEmailAddress:`${displayName} <${message.fromEmail}>`,Destination:{ToAddresses:[message.recipient]},ConfigurationSetName:settings.configurationSet,EmailTags:[{Name:'zendix_tenant',Value:tenantId},{Name:'zendix_dispatch',Value:message.dispatchId}],Content:{Simple:{Subject:{Data:message.subject,Charset:'UTF-8'},Body:{Text:{Data:message.text,Charset:'UTF-8'},Html:{Data:message.html,Charset:'UTF-8'}},Headers:headers}}}));
       return {accepted:true,providerMessageId:response.MessageId??null};
     }catch(error:unknown){
       const name=error instanceof Error?error.name:'';

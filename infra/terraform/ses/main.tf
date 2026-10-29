@@ -1,14 +1,9 @@
-resource "aws_sesv2_email_identity" "campaign" {
-  email_identity = var.sender_domain
-  dkim_signing_attributes { next_signing_key_length = "RSA_2048_BIT" }
-}
-
 resource "random_id" "asset_bucket_suffix" {
   byte_length = 4
 }
 
 resource "aws_s3_bucket" "assets" {
-  bucket        = "mailcraft-${var.environment}-assets-${random_id.asset_bucket_suffix.hex}"
+  bucket        = "zendix-${var.environment}-assets-${random_id.asset_bucket_suffix.hex}"
   force_destroy = var.s3_force_destroy
 }
 
@@ -40,15 +35,15 @@ resource "aws_s3_bucket_versioning" "assets" {
 }
 
 resource "aws_cloudfront_origin_access_control" "assets" {
-  name                              = "mailcraft-${var.environment}-assets"
-  description                       = "Private S3 access for MailCraft campaign media"
+  name                              = "zendix-${var.environment}-assets"
+  description                       = "Private S3 access for Zendix campaign media"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
 }
 
 resource "aws_cloudfront_cache_policy" "assets" {
-  name        = "mailcraft-${var.environment}-immutable-assets"
+  name        = "zendix-${var.environment}-immutable-assets"
   min_ttl     = 0
   default_ttl = 31536000
   max_ttl     = 31536000
@@ -66,14 +61,14 @@ resource "aws_cloudfront_distribution" "assets" {
   is_ipv6_enabled = true
   aliases         = [var.media_domain]
   price_class     = "PriceClass_100"
-  comment         = "MailCraft campaign assets"
+  comment         = "Zendix campaign assets"
   origin {
     domain_name              = aws_s3_bucket.assets.bucket_regional_domain_name
-    origin_id                = "mailcraft-assets-s3"
+    origin_id                = "zendix-assets-s3"
     origin_access_control_id = aws_cloudfront_origin_access_control.assets.id
   }
   default_cache_behavior {
-    target_origin_id       = "mailcraft-assets-s3"
+    target_origin_id       = "zendix-assets-s3"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD", "OPTIONS"]
@@ -121,7 +116,7 @@ resource "aws_acm_certificate" "assets" {
   lifecycle { create_before_destroy = true }
 }
 
-resource "cloudflare_record" "assets_certificate_validation" {
+resource "cloudflare_dns_record" "assets_certificate_validation" {
   for_each = {
     for option in aws_acm_certificate.assets.domain_validation_options : option.domain_name => {
       name   = option.resource_record_name
@@ -130,9 +125,9 @@ resource "cloudflare_record" "assets_certificate_validation" {
     }
   }
   zone_id = var.cloudflare_zone_id
-  name    = each.value.name
+  name    = trimsuffix(each.value.name, ".")
   type    = each.value.type
-  records = [each.value.record]
+  content = trimsuffix(each.value.record, ".")
   ttl     = 60
   proxied = false
 }
@@ -140,10 +135,10 @@ resource "cloudflare_record" "assets_certificate_validation" {
 resource "aws_acm_certificate_validation" "assets" {
   provider                = aws.us_east_1
   certificate_arn         = aws_acm_certificate.assets.arn
-  validation_record_fqdns = [for record in cloudflare_record.assets_certificate_validation : record.hostname]
+  validation_record_fqdns = [for record in cloudflare_dns_record.assets_certificate_validation : "${trimsuffix(record.name, ".")}."]
 }
 
-resource "cloudflare_record" "media_cname" {
+resource "cloudflare_dns_record" "media_cname" {
   zone_id = var.cloudflare_zone_id
   name    = var.media_domain
   type    = "CNAME"
@@ -186,21 +181,16 @@ resource "aws_iam_user_policy" "mailer_cloudfront_invalidation" {
   })
 }
 
-resource "aws_sesv2_email_identity_mail_from_attributes" "campaign" {
-  email_identity         = aws_sesv2_email_identity.campaign.email_identity
-  mail_from_domain       = local.mail_from_name
-  behavior_on_mx_failure = "REJECT_MESSAGE"
-}
 
 resource "aws_sesv2_configuration_set" "campaign" {
-  configuration_set_name = "mailcraft-${var.environment}-campaigns"
+  configuration_set_name = "zendix-${var.environment}-campaigns"
   reputation_options { reputation_metrics_enabled = true }
   sending_options { sending_enabled = true }
   suppression_options { suppressed_reasons = ["BOUNCE", "COMPLAINT"] }
 }
 
 resource "aws_sns_topic" "ses_events" {
-  name                              = "mailcraft-${var.environment}-ses-events"
+  name                              = "zendix-${var.environment}-ses-events"
   signature_version                 = "2"
   http_failure_feedback_role_arn    = aws_iam_role.sns_feedback.arn
   http_success_feedback_role_arn    = aws_iam_role.sns_feedback.arn
@@ -218,7 +208,7 @@ data "aws_iam_policy_document" "sns_assume" {
 }
 
 resource "aws_iam_role" "sns_feedback" {
-  name               = "mailcraft-${var.environment}-sns-feedback"
+  name               = "zendix-${var.environment}-sns-feedback"
   assume_role_policy = data.aws_iam_policy_document.sns_assume.json
 }
 
@@ -273,6 +263,7 @@ resource "aws_sesv2_configuration_set_event_destination" "sns" {
 }
 
 resource "aws_sns_topic_subscription" "webhook" {
+  count                           = var.enable_webhook_subscription ? 1 : 0
   topic_arn                       = aws_sns_topic.ses_events.arn
   protocol                        = "https"
   endpoint                        = "${trimsuffix(var.app_public_url, "/")}/webhooks/ses"
@@ -282,106 +273,28 @@ resource "aws_sns_topic_subscription" "webhook" {
 }
 
 resource "aws_sesv2_email_identity" "account" {
-  count          = var.manage_account_email_identity ? 1 : 0
-  email_identity = var.account_sender_email
+  email_identity = var.platform_domain
+  dkim_signing_attributes { next_signing_key_length = "RSA_2048_BIT" }
 }
 
-resource "cloudflare_record" "ownership" {
-  zone_id = var.cloudflare_zone_id
-  name    = "_mailcraft.${var.sender_domain}"
-  type    = "TXT"
-  content = "mailcraft-verification=${var.domain_ownership_token}"
-  ttl     = 300
-}
-
-resource "cloudflare_record" "sender_dkim" {
-  for_each = toset(aws_sesv2_email_identity.campaign.dkim_signing_attributes[0].tokens)
+resource "cloudflare_dns_record" "account_dkim" {
+  for_each = toset(["0", "1", "2"])
   zone_id  = var.cloudflare_zone_id
-  name     = "${each.value}._domainkey.${var.sender_domain}"
+  name     = "${aws_sesv2_email_identity.account.dkim_signing_attributes[0].tokens[tonumber(each.value)]}._domainkey.${var.platform_domain}"
   type     = "CNAME"
-  content  = "${each.value}.dkim.amazonses.com"
-  ttl      = 300
-  proxied  = false
-}
-
-resource "cloudflare_record" "mail_from_spf" {
-  zone_id = var.cloudflare_zone_id
-  name    = local.mail_from_name
-  type    = "TXT"
-  content = "v=spf1 include:amazonses.com ~all"
-  ttl     = 300
-}
-
-resource "cloudflare_record" "mail_from_mx" {
-  zone_id  = var.cloudflare_zone_id
-  name     = local.mail_from_name
-  type     = "MX"
-  content  = "feedback-smtp.${var.aws_region}.amazonses.com"
-  priority = 10
-  ttl      = 300
-}
-
-resource "cloudflare_record" "dmarc" {
-  zone_id = var.cloudflare_zone_id
-  name    = "_dmarc.${var.sender_domain}"
-  type    = "TXT"
-  content = local.dmarc_value
-  ttl     = 300
-}
-
-resource "cloudflare_record" "dkim" {
-  for_each = toset(aws_sesv2_email_identity.campaign.dkim_signing_attributes[0].tokens)
-  zone_id  = var.cloudflare_zone_id
-  name     = "${each.value}._domainkey.${var.sender_domain}"
-  type     = "CNAME"
-  content  = "${each.value}.dkim.amazonses.com"
-  ttl      = 300
-  proxied  = false
-}
-
-resource "cloudflare_record" "mail_from_spf" {
-  zone_id = var.cloudflare_zone_id
-  name    = local.mail_from_name
-  type    = "TXT"
-  content = "v=spf1 include:amazonses.com ~all"
-  ttl     = 300
-}
-
-resource "cloudflare_record" "mail_from_mx" {
-  zone_id  = var.cloudflare_zone_id
-  name     = local.mail_from_name
-  type     = "MX"
-  content  = "feedback-smtp.${var.aws_region}.amazonses.com"
-  priority = 10
-  ttl      = 300
-}
-
-resource "cloudflare_record" "dmarc" {
-  zone_id = var.cloudflare_zone_id
-  name    = "_dmarc.${var.sender_domain}"
-  type    = "TXT"
-  content = local.dmarc_value
-  ttl     = 300
-}
-
-resource "cloudflare_record" "account_dkim" {
-  for_each = var.manage_account_email_identity ? toset(aws_sesv2_email_identity.account[0].dkim_signing_attributes[0].tokens) : toset([])
-  zone_id  = var.cloudflare_zone_id
-  name     = "${each.value}._domainkey.${var.sender_domain}"
-  type     = "CNAME"
-  content  = "${each.value}.dkim.amazonses.com"
+  content  = "${aws_sesv2_email_identity.account.dkim_signing_attributes[0].tokens[tonumber(each.value)]}.dkim.amazonses.com"
   ttl      = 300
   proxied  = false
 }
 
 resource "aws_iam_user" "mailer" {
-  name = "mailcraft-${var.environment}-mailer"
+  name = "zendix-${var.environment}-mailer"
 }
 
 data "aws_iam_policy_document" "mailer" {
   statement {
     actions   = ["ses:SendEmail"]
-    resources = [aws_sesv2_email_identity.campaign.arn]
+    resources = ["arn:${data.aws_partition.current.partition}:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/*"]
     condition {
       test     = "StringEquals"
       variable = "ses:configuration-set"
@@ -389,7 +302,7 @@ data "aws_iam_policy_document" "mailer" {
     }
   }
   statement {
-    actions   = ["ses:GetEmailIdentity", "ses:GetAccount", "ses:GetConfigurationSetEventDestinations"]
+    actions   = ["ses:GetEmailIdentity", "ses:GetAccount", "ses:GetConfigurationSetEventDestinations", "ses:CreateEmailIdentity", "ses:PutEmailIdentityMailFromAttributes"]
     resources = ["*"]
   }
   statement {
@@ -397,6 +310,8 @@ data "aws_iam_policy_document" "mailer" {
     resources = [aws_sns_topic.ses_events.arn]
   }
 }
+
+data "aws_partition" "current" {}
 
 resource "aws_iam_user_policy" "mailer" {
   user   = aws_iam_user.mailer.name
